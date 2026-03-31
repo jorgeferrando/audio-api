@@ -14,7 +14,7 @@ export interface AudioStatusDto {
   sizeInBytes: number
   status: AudioTrackStatus
   durationSeconds?: number
-  processedFilePath?: string
+  downloadReady: boolean
   createdAt: Date
   job: {
     jobId: string
