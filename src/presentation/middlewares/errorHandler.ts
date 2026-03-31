@@ -6,7 +6,9 @@ import type { ILogger } from '@shared/ILogger'
 const HTTP_STATUS: Record<string, number> = {
   VALIDATION_ERROR: StatusCodes.BAD_REQUEST,
   NOT_FOUND:        StatusCodes.NOT_FOUND,
+  NOT_READY:        StatusCodes.CONFLICT,
   CONFLICT:         StatusCodes.CONFLICT,
+  PROCESSING_ERROR: StatusCodes.INTERNAL_SERVER_ERROR,
   DATABASE_ERROR:   StatusCodes.SERVICE_UNAVAILABLE,
   QUEUE_ERROR:      StatusCodes.SERVICE_UNAVAILABLE,
 }

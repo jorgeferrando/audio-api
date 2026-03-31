@@ -34,13 +34,15 @@ const makeGetStatusUseCase = () => ({
 const makeReq = (overrides: Partial<Request> = {}) => ({
   body:   {},
   params: {},
+  file:   undefined,
   ...overrides,
 }) as unknown as Request
 
 const makeRes = () => {
   const res = {
-    status: vi.fn().mockReturnThis(),
-    json:   vi.fn().mockReturnThis(),
+    status:    vi.fn().mockReturnThis(),
+    json:      vi.fn().mockReturnThis(),
+    setHeader: vi.fn().mockReturnThis(),
   }
   return res as unknown as Response
 }
@@ -66,15 +68,15 @@ describe('AudioController', () => {
   // ─── upload ────────────────────────────────────────────────────────────
 
   describe('upload()', () => {
-    const validBody = {
-      filename:    'song.mp3',
-      mimeType:    'audio/mpeg',
-      sizeInBytes: 1024,
-      effect:      'NORMALIZE',
+    const validFile = {
+      originalname: 'song.mp3',
+      mimetype:     'audio/mpeg',
+      size:         1024,
+      path:         '/uploads/originals/abc.mp3',
     }
 
     it('returns 202 with audioTrackId and jobId on success', async () => {
-      const req = makeReq({ body: validBody })
+      const req = makeReq({ file: validFile as any, body: { effect: 'NORMALIZE' } })
       const res = makeRes()
 
       await controller.upload(req, res, next)
@@ -86,8 +88,8 @@ describe('AudioController', () => {
       })
     })
 
-    it('calls next with ValidationError for missing filename', async () => {
-      const req = makeReq({ body: { ...validBody, filename: '' } })
+    it('calls next with ValidationError when no file uploaded', async () => {
+      const req = makeReq({ body: { effect: 'NORMALIZE' } })
       const res = makeRes()
 
       await controller.upload(req, res, next)
@@ -96,7 +98,7 @@ describe('AudioController', () => {
     })
 
     it('calls next with ValidationError for invalid effect', async () => {
-      const req = makeReq({ body: { ...validBody, effect: 'INVALID' } })
+      const req = makeReq({ file: validFile as any, body: { effect: 'INVALID' } })
       const res = makeRes()
 
       await controller.upload(req, res, next)
@@ -104,16 +106,19 @@ describe('AudioController', () => {
       expect(next).toHaveBeenCalledWith(expect.any(ValidationError))
     })
 
-    it('calls next with error when use case fails', async () => {
-      uploadUseCase.execute.mockResolvedValue(
-        err(new ValidationError('invalid mimeType'))
-      )
-      const req = makeReq({ body: validBody })
+    it('passes file metadata from req.file to the use case', async () => {
+      const req = makeReq({ file: validFile as any, body: { effect: 'REVERB' } })
       const res = makeRes()
 
       await controller.upload(req, res, next)
 
-      expect(next).toHaveBeenCalledWith(expect.any(ValidationError))
+      expect(uploadUseCase.execute).toHaveBeenCalledWith({
+        filename:    'song.mp3',
+        mimeType:    'audio/mpeg',
+        sizeInBytes: 1024,
+        effect:      AudioEffect.REVERB,
+        filePath:    '/uploads/originals/abc.mp3',
+      })
     })
   })
 
@@ -140,6 +145,31 @@ describe('AudioController', () => {
       const res = makeRes()
 
       await controller.getStatus(req, res, next)
+
+      expect(next).toHaveBeenCalledWith(expect.any(NotFoundError))
+    })
+  })
+
+  // ─── download ──────────────────────────────────────────────────────────
+
+  describe('download()', () => {
+    it('calls next with NOT_READY if track is not ready', async () => {
+      const req = makeReq({ params: { id: 'track-1' } })
+      const res = makeRes()
+
+      await controller.download(req, res, next)
+
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: 'NOT_READY' }))
+    })
+
+    it('calls next with NotFoundError if track does not exist', async () => {
+      getStatusUseCase.execute.mockResolvedValue(
+        err(new NotFoundError('AudioTrack', 'unknown'))
+      )
+      const req = makeReq({ params: { id: 'unknown' } })
+      const res = makeRes()
+
+      await controller.download(req, res, next)
 
       expect(next).toHaveBeenCalledWith(expect.any(NotFoundError))
     })

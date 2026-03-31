@@ -6,6 +6,7 @@ import { connectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
 import { AudioTrackMongoRepository } from '@infrastructure/db/AudioTrackMongoRepository'
 import { ProcessingJobMongoRepository } from '@infrastructure/db/ProcessingJobMongoRepository'
 import { RedisCacheService } from '@infrastructure/cache/RedisCacheService'
+import { FfmpegAudioProcessor } from '@infrastructure/audio/FfmpegAudioProcessor'
 import { ProcessJobUseCase } from '@application/job/ProcessJobUseCase'
 import { RabbitMQConsumer } from '@infrastructure/queue/RabbitMQConsumer'
 
@@ -29,8 +30,11 @@ async function main(): Promise<void> {
   const audioRepo = new AudioTrackMongoRepository(logger)
   const jobRepo   = new ProcessingJobMongoRepository(logger)
 
+  // ── Audio processor ────────────────────────────────────────────────────
+  const audioProcessor = new FfmpegAudioProcessor(logger)
+
   // ── Use case ──────────────────────────────────────────────────────────
-  const processJob = new ProcessJobUseCase(audioRepo, jobRepo, cache, logger)
+  const processJob = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, cache, logger)
 
   // ── Consumer ──────────────────────────────────────────────────────────
   const consumer = new RabbitMQConsumer(channel, processJob, logger)

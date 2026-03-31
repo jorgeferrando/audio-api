@@ -50,9 +50,10 @@ export class GetAudioStatusUseCase {
       filename:        audio.filename,
       mimeType:        audio.mimeType,
       sizeInBytes:     audio.sizeInBytes,
-      status:          audio.status,
-      durationSeconds: audio.durationSeconds,
-      createdAt:       audio.createdAt,
+      status:            audio.status,
+      durationSeconds:   audio.durationSeconds,
+      processedFilePath: audio.processedFilePath,
+      createdAt:         audio.createdAt,
       job: job ? {
         jobId:        job.id,
         effect:       job.effect,

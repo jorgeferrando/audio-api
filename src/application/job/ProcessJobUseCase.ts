@@ -1,3 +1,4 @@
+import path from 'path'
 import { type Result, ok, err } from '@shared/Result'
 import type { AppError} from '@shared/AppError';
 import { NotFoundError } from '@shared/AppError'
@@ -7,6 +8,7 @@ import type { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
 import { AudioTrack, AudioTrackStatus } from '@domain/audio/AudioTrack'
 import type { IProcessingJobRepository } from '@domain/job/IProcessingJobRepository'
 import { ProcessingJob, JobStatus } from '@domain/job/ProcessingJob'
+import type { IAudioProcessor } from './IAudioProcessor'
 
 interface ProcessJobInput {
   jobId: string
@@ -18,19 +20,15 @@ interface ProcessJobInput {
  * Flow:
  *   1. Load job + audio track from DB.
  *   2. Transition both to PROCESSING and persist.
- *   3. Simulate audio processing (random duration).
+ *   3. Process audio with ffmpeg via IAudioProcessor port.
  *   4. Transition both to COMPLETED/READY and persist.
  *   5. Invalidate the status cache so the next poll reflects the new state.
- *
- * Error compensation: if any step after PROCESSING is persisted fails, we call
- * markAsFailed(). This reconstitutes fresh entities in PROCESSING state (their last
- * known DB state) so the state machine allows the FAILED transition. The original
- * in-memory entities are not mutated — their state is irrelevant at this point.
  */
 export class ProcessJobUseCase {
   constructor(
     private readonly audioRepo: IAudioTrackRepository,
     private readonly jobRepo: IProcessingJobRepository,
+    private readonly audioProcessor: IAudioProcessor,
     private readonly cache: ICacheService,
     private readonly logger: ILogger,
   ) {}
@@ -61,15 +59,28 @@ export class ProcessJobUseCase {
 
     this.logger.info('ProcessJobUseCase: processing started', { jobId: job.id })
 
-    // ── 3. Simulate processing ────────────────────────────────────────────
+    // ── 3. Process audio ──────────────────────────────────────────────────
 
-    const durationSeconds = await simulateProcessing()
+    const ext = path.extname(audio.filePath)
+    const outputPath = path.join(
+      path.dirname(audio.filePath), '..', 'processed', `${audio.id}_${job.effect}${ext}`
+    )
+
+    const processingResult = await this.audioProcessor.applyEffect(
+      audio.filePath, outputPath, job.effect
+    )
+
+    if (processingResult.isErr()) {
+      await this.markAsFailed(job, audio, processingResult.error.message)
+      return err(processingResult.error)
+    }
+
+    const { durationSeconds, processedFilePath } = processingResult.value
 
     // ── 4. Transition to COMPLETED / READY ────────────────────────────────
-    // From here on, any failure triggers compensation: both entities are
-    // marked FAILED in DB to prevent them being stuck in PROCESSING forever.
 
     job.complete()
+    audio.setProcessedFilePath(processedFilePath)
     audio.markAsReady(durationSeconds)
 
     const saveJobCompleted = await this.jobRepo.save(job)
@@ -97,15 +108,6 @@ export class ProcessJobUseCase {
     return ok(undefined)
   }
 
-  /**
-   * Compensation: persist FAILED status for both entities after a mid-processing error.
-   *
-   * We reconstitute fresh entities in PROCESSING state (their last confirmed DB state)
-   * because the originals may have already been transitioned in memory (to COMPLETED/READY)
-   * and the state machine would reject a FAILED transition from those states.
-   * `reconstitute()` bypasses domain validation — we intentionally set PROCESSING
-   * so the FAILED transition is valid.
-   */
   private async markAsFailed(
     job: ProcessingJob,
     audio: AudioTrack,
@@ -140,14 +142,4 @@ export class ProcessJobUseCase {
     failedAudio.markAsFailed()
     await this.audioRepo.save(failedAudio)
   }
-}
-
-/**
- * Simulates audio processing with a realistic random duration.
- * In production this would call an actual audio processing library.
- */
-async function simulateProcessing(): Promise<number> {
-  const durationSeconds = Math.random() * 300 + 30 // 30–330 seconds of audio
-  await new Promise(resolve => setTimeout(resolve, 100))
-  return Math.round(durationSeconds * 10) / 10
 }
