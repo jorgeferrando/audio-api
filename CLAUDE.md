@@ -70,11 +70,61 @@ src/
 
 ## Key Principles
 
-- **TDD**: write test first, then implementation
+- **TDD**: write test first, then implementation. Red → Green → Refactor. No exceptions.
 - **SOLID**: especially Single Responsibility and Dependency Inversion
-- **YAGNI**: no over-engineering. Simple and functional.
-- **Result type**: use `Result<T, E>` instead of throwing exceptions in domain/application layers
-- **Dependency Injection**: use constructor injection, no service locators
+- **YAGNI**: no over-engineering. Simple and functional. Don't add what isn't needed yet.
+- **KISS**: simplest solution that works. No premature abstractions.
+
+### Error handling
+- **Result/Either pattern** in domain + application layers. Never `throw` there.
+- `try-catch` only in infrastructure (DB, queues, HTTP calls) to catch unexpected exceptions and convert them to `Result`.
+- Always log the original exception inside the `catch` before converting to `Result` — it's the last chance to see the real stack trace.
+
+```typescript
+// infrastructure — the only place for try-catch
+async save(audio: AudioTrack): Promise<Result<void, DatabaseError>> {
+  try {
+    await this.model.create(audio)
+    return ok(undefined)
+  } catch (e) {
+    this.logger.error('AudioRepository.save failed', { error: e, audioId: audio.id })
+    return err(new DatabaseError('Failed to save audio'))
+  }
+}
+```
+
+### Logging
+- Define `ILogger` port in `shared/`. Never depend on Winston directly outside infrastructure.
+- `WinstonLogger` for dev/prod (already implemented). Add `DatadogLogger`, `SentryLogger`, etc. as new implementations.
+- dev format: human-readable with colors. prod format: JSON for observability tools.
+- Inject logger via constructor. Never import a global singleton.
+- **Contract tests**: every `ILogger` implementation must pass `testLoggerContract()` from `tests/unit/infrastructure/logger/loggerContract.ts`.
+
+### Ports & Adapters
+- Define interfaces (Ports) in `shared/` or `domain/`. Implement them in `infrastructure/`.
+- Code in domain/application depends only on interfaces, never on concrete classes.
+- Swap implementations by changing the composition root (`index.ts`) only.
+
+### Contract Tests
+- When two or more classes implement the same interface, extract shared behavior into a contract function:
+  ```typescript
+  // loggerContract.ts
+  export function testLoggerContract(createLogger: () => ILogger) { ... }
+
+  // WinstonLogger.test.ts
+  describe('WinstonLogger', () => {
+    testLoggerContract(() => new WinstonLogger())
+    // ...specific tests
+  })
+  ```
+- This enforces LSP (Liskov Substitution Principle) at the test level.
+
+### Dependency Injection
+- Constructor injection only. No service locators, no global singletons.
+- Wire everything in `index.ts` (composition root).
+
+### Commits
+- Conventional commits. No Claude co-author. Jorge's commits only.
 
 ---
 
