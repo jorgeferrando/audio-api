@@ -10,16 +10,40 @@ export enum JobStatus {
 }
 
 export enum AudioEffect {
-  NORMALIZE   = 'NORMALIZE',
-  REVERB      = 'REVERB',
-  ECHO        = 'ECHO',
-  PITCH_SHIFT = 'PITCH_SHIFT',
+  NORMALIZE       = 'NORMALIZE',
+  REVERB          = 'REVERB',
+  ECHO            = 'ECHO',
+  PITCH_SHIFT     = 'PITCH_SHIFT',
   NOISE_REDUCTION = 'NOISE_REDUCTION',
 }
 
-interface ProcessingJobProps {
+interface ProcessingJobCreateProps {
   audioTrackId: string
   effect: AudioEffect
+}
+
+// Full internal state — used by the private constructor.
+interface ProcessingJobConstructorProps {
+  id: string
+  audioTrackId: string
+  effect: AudioEffect
+  status: JobStatus
+  startedAt: Date | undefined
+  completedAt: Date | undefined
+  errorMessage: string | undefined
+  createdAt: Date
+}
+
+// Shape of the data the repository reads from the DB and passes to reconstitute().
+export interface ProcessingJobPersistence {
+  id: string
+  audioTrackId: string
+  effect: AudioEffect
+  status: JobStatus
+  startedAt?: Date
+  completedAt?: Date
+  errorMessage?: string
+  createdAt: Date
 }
 
 /**
@@ -27,8 +51,9 @@ interface ProcessingJobProps {
  *
  * Design decisions:
  *
- * 1. Same private constructor + static `create()` factory as AudioTrack.
- *    Guarantees every instance is valid by construction; validation returns Result.
+ * 1. Same private constructor + static factories as AudioTrack.
+ *    - `create()`: validates input, generates id, sets initial state.
+ *    - `reconstitute()`: bypasses validation, restores full state from persistence.
  *
  * 2. State machine: PENDING → PROCESSING → COMPLETED | FAILED
  *    Each transition is explicit and validated — no direct status assignment from outside.
@@ -49,12 +74,15 @@ export class ProcessingJob {
   #completedAt?: Date
   #errorMessage?: string
 
-  private constructor(props: ProcessingJobProps) {
-    this.id           = randomUUID()
-    this.audioTrackId = props.audioTrackId
-    this.effect       = props.effect
-    this.createdAt    = new Date()
-    this.#status      = JobStatus.PENDING
+  private constructor(props: ProcessingJobConstructorProps) {
+    this.id            = props.id
+    this.audioTrackId  = props.audioTrackId
+    this.effect        = props.effect
+    this.createdAt     = props.createdAt
+    this.#status       = props.status
+    this.#startedAt    = props.startedAt
+    this.#completedAt  = props.completedAt
+    this.#errorMessage = props.errorMessage
   }
 
   get status(): JobStatus { return this.#status }
@@ -62,12 +90,35 @@ export class ProcessingJob {
   get completedAt(): Date | undefined { return this.#completedAt }
   get errorMessage(): string | undefined { return this.#errorMessage }
 
-  static create(props: ProcessingJobProps): Result<ProcessingJob, ValidationError> {
+  static create(props: ProcessingJobCreateProps): Result<ProcessingJob, ValidationError> {
     if (!props.audioTrackId.trim()) {
       return err(new ValidationError('audioTrackId cannot be empty'))
     }
 
-    return ok(new ProcessingJob(props))
+    return ok(new ProcessingJob({
+      id: randomUUID(),
+      audioTrackId: props.audioTrackId,
+      effect: props.effect,
+      status: JobStatus.PENDING,
+      startedAt: undefined,
+      completedAt: undefined,
+      errorMessage: undefined,
+      createdAt: new Date(),
+    }))
+  }
+
+  /** Restores a ProcessingJob from persisted data. Skips validation — data is trusted. */
+  static reconstitute(data: ProcessingJobPersistence): ProcessingJob {
+    return new ProcessingJob({
+      id: data.id,
+      audioTrackId: data.audioTrackId,
+      effect: data.effect,
+      status: data.status,
+      startedAt: data.startedAt,
+      completedAt: data.completedAt,
+      errorMessage: data.errorMessage,
+      createdAt: data.createdAt,
+    })
   }
 
   /** PENDING → PROCESSING */

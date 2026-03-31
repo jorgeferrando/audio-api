@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ProcessingJob, JobStatus, AudioEffect } from './ProcessingJob'
+import { ProcessingJob, JobStatus, AudioEffect, type ProcessingJobPersistence } from './ProcessingJob'
 import { ValidationError } from '@shared/AppError'
 
 describe('ProcessingJob', () => {
@@ -175,6 +175,47 @@ describe('ProcessingJob', () => {
       expect(result.isErr()).toBe(true)
       if (!result.isErr()) return
       expect(result.error.code).toBe('INVALID_TRANSITION')
+    })
+  })
+
+  // ─── reconstitute() ──────────────────────────────────────────────────────
+
+  describe('reconstitute()', () => {
+    const persistedData: ProcessingJobPersistence = {
+      id: 'existing-job-uuid',
+      audioTrackId: 'track-uuid',
+      effect: AudioEffect.REVERB,
+      status: JobStatus.COMPLETED,
+      startedAt: new Date('2024-01-01T10:00:00Z'),
+      completedAt: new Date('2024-01-01T10:01:00Z'),
+      createdAt: new Date('2024-01-01T09:59:00Z'),
+    }
+
+    it('restores the entity with the persisted id', () => {
+      const job = ProcessingJob.reconstitute(persistedData)
+      expect(job.id).toBe('existing-job-uuid')
+    })
+
+    it('restores the persisted status (not always PENDING)', () => {
+      const job = ProcessingJob.reconstitute(persistedData)
+      expect(job.status).toBe(JobStatus.COMPLETED)
+    })
+
+    it('restores timestamps', () => {
+      const job = ProcessingJob.reconstitute(persistedData)
+      expect(job.startedAt).toEqual(new Date('2024-01-01T10:00:00Z'))
+      expect(job.completedAt).toEqual(new Date('2024-01-01T10:01:00Z'))
+    })
+
+    it('restores a FAILED job with errorMessage', () => {
+      const job = ProcessingJob.reconstitute({
+        ...persistedData,
+        status: JobStatus.FAILED,
+        errorMessage: 'codec not supported',
+        completedAt: new Date(),
+      })
+      expect(job.status).toBe(JobStatus.FAILED)
+      expect(job.errorMessage).toBe('codec not supported')
     })
   })
 })
