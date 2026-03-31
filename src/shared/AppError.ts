@@ -25,3 +25,9 @@ export class ConflictError extends AppError {
     super(`${entity} '${id}' already exists`, 'CONFLICT')
   }
 }
+
+export class DatabaseError extends AppError {
+  constructor(message: string) {
+    super(message, 'DATABASE_ERROR')
+  }
+}
