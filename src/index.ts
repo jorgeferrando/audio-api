@@ -15,9 +15,9 @@ import { createApp } from '@infrastructure/http/app'
 dotenv.config()
 
 const PORT       = process.env.PORT ?? 3000
-const MONGO_URI  = process.env.MONGO_URI ?? 'mongodb://localhost:27017/audio-api'
+const MONGO_URI  = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/audio-api'
 const REDIS_URL  = process.env.REDIS_URL ?? 'redis://localhost:6379'
-const RABBIT_URL = process.env.RABBIT_URL ?? 'amqp://guest:guest@localhost:5672'
+const RABBIT_URL = process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672'
 
 async function main(): Promise<void> {
   const logger = new WinstonLogger(process.env.NODE_ENV ?? 'development')
