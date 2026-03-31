@@ -4,6 +4,8 @@ REST API for audio processing with async job execution via message queues.
 
 Built with **Node.js**, **Express**, **MongoDB**, **Redis** and **RabbitMQ**.
 
+![Web UI](docs/screenshot.png)
+
 ## Architecture
 
 Clean Architecture with four layers:
