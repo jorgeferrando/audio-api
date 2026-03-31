@@ -22,7 +22,7 @@ services:
 
   worker:
     build: .
-    command: node dist/worker.js
+    command: npx tsx src/worker.ts
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongodb:27017/audio-api
