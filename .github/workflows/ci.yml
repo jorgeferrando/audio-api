@@ -55,9 +55,3 @@ jobs:
           NODE_ENV: test
           MONGODB_URI: mongodb://localhost:27017/audio-api-test
           REDIS_URL: redis://localhost:6379
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
