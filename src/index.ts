@@ -2,8 +2,8 @@ import dotenv from 'dotenv'
 import Redis from 'ioredis'
 import rateLimit from 'express-rate-limit'
 import { WinstonLogger } from '@infrastructure/logger/WinstonLogger'
-import { connectMongo } from '@infrastructure/db/mongoConnection'
-import { connectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
+import { connectMongo, disconnectMongo } from '@infrastructure/db/mongoConnection'
+import { connectRabbitMQ, disconnectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
 import { AudioTrackMongoRepository } from '@infrastructure/db/AudioTrackMongoRepository'
 import { ProcessingJobMongoRepository } from '@infrastructure/db/ProcessingJobMongoRepository'
 import { RedisCacheService } from '@infrastructure/cache/RedisCacheService'
@@ -29,8 +29,8 @@ async function main(): Promise<void> {
 
   const redis      = new Redis(REDIS_URL)
   const cache      = new RedisCacheService(redis)
-  const { channel } = await connectRabbitMQ(RABBIT_URL, logger)
-  const publisher  = new RabbitMQPublisher(channel, logger)
+  const rabbitConn = await connectRabbitMQ(RABBIT_URL, logger)
+  const publisher  = new RabbitMQPublisher(rabbitConn.channel, logger)
 
   // ── Repositories ──────────────────────────────────────────────────────
   const audioRepo = new AudioTrackMongoRepository(logger)
@@ -52,9 +52,22 @@ async function main(): Promise<void> {
   const controller = new AudioController(uploadAudio, getAudioStatus, downloadAudio)
   const app        = createApp(controller, logger, limiter)
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     logger.info(`API server listening on port ${PORT}`)
   })
+
+  // ── Graceful shutdown ─────────────────────────────────────────────────
+  const shutdown = async (): Promise<void> => {
+    logger.info('Shutting down...')
+    server.close()
+    await disconnectRabbitMQ(rabbitConn, logger)
+    redis.disconnect()
+    await disconnectMongo(logger)
+    process.exit(0)
+  }
+
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
 }
 
 main().catch((err) => {

@@ -1,8 +1,8 @@
 import dotenv from 'dotenv'
 import Redis from 'ioredis'
 import { WinstonLogger } from '@infrastructure/logger/WinstonLogger'
-import { connectMongo } from '@infrastructure/db/mongoConnection'
-import { connectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
+import { connectMongo, disconnectMongo } from '@infrastructure/db/mongoConnection'
+import { connectRabbitMQ, disconnectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
 import { AudioTrackMongoRepository } from '@infrastructure/db/AudioTrackMongoRepository'
 import { ProcessingJobMongoRepository } from '@infrastructure/db/ProcessingJobMongoRepository'
 import { RedisCacheService } from '@infrastructure/cache/RedisCacheService'
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
 
   const redis      = new Redis(REDIS_URL)
   const cache      = new RedisCacheService(redis)
-  const { channel } = await connectRabbitMQ(RABBIT_URL, logger)
+  const rabbitConn = await connectRabbitMQ(RABBIT_URL, logger)
 
   // ── Repositories ──────────────────────────────────────────────────────
   const audioRepo = new AudioTrackMongoRepository(logger)
@@ -37,10 +37,22 @@ async function main(): Promise<void> {
   const processJob = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, cache, logger)
 
   // ── Consumer ──────────────────────────────────────────────────────────
-  const consumer = new RabbitMQConsumer(channel, processJob, logger)
+  const consumer = new RabbitMQConsumer(rabbitConn.channel, processJob, logger)
   await consumer.start()
 
   logger.info('Worker started, consuming audio.jobs queue')
+
+  // ── Graceful shutdown ─────────────────────────────────────────────────
+  const shutdown = async (): Promise<void> => {
+    logger.info('Worker shutting down...')
+    await disconnectRabbitMQ(rabbitConn, logger)
+    redis.disconnect()
+    await disconnectMongo(logger)
+    process.exit(0)
+  }
+
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
 }
 
 main().catch((err) => {
