@@ -1,6 +1,6 @@
 import { type Result } from '@shared/Result'
-import { DatabaseError } from '@shared/AppError'
-import { AudioTrack } from './AudioTrack'
+import type { DatabaseError } from '@shared/AppError'
+import type { AudioTrack } from './AudioTrack'
 
 /**
  * Port: defines what the application needs from audio track storage.

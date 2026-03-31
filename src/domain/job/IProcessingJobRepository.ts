@@ -1,6 +1,6 @@
 import { type Result } from '@shared/Result'
-import { DatabaseError } from '@shared/AppError'
-import { ProcessingJob } from './ProcessingJob'
+import type { DatabaseError } from '@shared/AppError'
+import type { ProcessingJob } from './ProcessingJob'
 
 /**
  * Port: defines what the application needs from job storage.

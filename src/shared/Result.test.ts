@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { ok, err, Result } from '@shared/Result'
+import type { Result } from '@shared/Result';
+import { ok, err } from '@shared/Result'
 
 describe('Result', () => {
   describe('ok', () => {

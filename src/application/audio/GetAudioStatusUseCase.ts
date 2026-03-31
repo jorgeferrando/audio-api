@@ -1,9 +1,10 @@
 import { type Result, ok, err } from '@shared/Result'
-import { AppError, NotFoundError } from '@shared/AppError'
-import { AudioTrack } from '@domain/audio/AudioTrack'
-import { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
-import { ProcessingJob } from '@domain/job/ProcessingJob'
-import { IProcessingJobRepository } from '@domain/job/IProcessingJobRepository'
+import type { AppError} from '@shared/AppError';
+import { NotFoundError } from '@shared/AppError'
+import type { AudioTrack } from '@domain/audio/AudioTrack'
+import type { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
+import type { ProcessingJob } from '@domain/job/ProcessingJob'
+import type { IProcessingJobRepository } from '@domain/job/IProcessingJobRepository'
 
 interface GetAudioStatusInput {
   audioTrackId: string

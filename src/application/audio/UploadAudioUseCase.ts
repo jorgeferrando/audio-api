@@ -1,11 +1,12 @@
 import { type Result, ok, err } from '@shared/Result'
-import { AppError } from '@shared/AppError'
-import { ILogger } from '@shared/ILogger'
+import type { AppError } from '@shared/AppError'
+import type { ILogger } from '@shared/ILogger'
 import { AudioTrack } from '@domain/audio/AudioTrack'
-import { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
-import { ProcessingJob, AudioEffect } from '@domain/job/ProcessingJob'
-import { IProcessingJobRepository } from '@domain/job/IProcessingJobRepository'
-import { IJobPublisher } from '@application/job/IJobPublisher'
+import type { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
+import type { AudioEffect } from '@domain/job/ProcessingJob';
+import { ProcessingJob } from '@domain/job/ProcessingJob'
+import type { IProcessingJobRepository } from '@domain/job/IProcessingJobRepository'
+import type { IJobPublisher } from '@application/job/IJobPublisher'
 
 interface UploadAudioInput {
   filename: string

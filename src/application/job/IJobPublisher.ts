@@ -1,6 +1,6 @@
 import { type Result } from '@shared/Result'
-import { AppError } from '@shared/AppError'
-import { ProcessingJob } from '@domain/job/ProcessingJob'
+import type { AppError } from '@shared/AppError'
+import type { ProcessingJob } from '@domain/job/ProcessingJob'
 
 /**
  * Port: defines how the application publishes jobs to the message queue.
