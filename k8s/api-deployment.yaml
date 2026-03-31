@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audio-api
+  namespace: audio-api
+  labels:
+    app: audio-api
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: audio-api
+      component: api
+  template:
+    metadata:
+      labels:
+        app: audio-api
+        component: api
+    spec:
+      containers:
+        - name: api
+          image: audio-api:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: audio-api-config
+            - secretRef:
+                name: audio-api-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: audio-uploads-pvc

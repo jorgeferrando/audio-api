@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audio-api-config
+  namespace: audio-api
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  MONGODB_URI: mongodb://mongodb:27017/audio-api
+  REDIS_URL: redis://redis:6379
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
