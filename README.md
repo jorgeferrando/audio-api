@@ -2,6 +2,8 @@
 
 REST API for audio processing with async job execution via message queues.
 
+Upload an audio file, apply an effect (reverb, echo, pitch shift...), and download the processed result.
+
 Built with **Node.js**, **Express**, **MongoDB**, **Redis** and **RabbitMQ**.
 
 ![Web UI](docs/screenshot.png)
@@ -11,123 +13,60 @@ Built with **Node.js**, **Express**, **MongoDB**, **Redis** and **RabbitMQ**.
 Clean Architecture with four layers:
 
 ```
-presentation/     Controllers, routes, HTTP middlewares
+presentation/     Controllers, routes, middlewares (auth, error handling)
 application/      Use cases, DTOs, application ports
 domain/           Entities, value objects, repository ports
-infrastructure/   MongoDB, Redis, RabbitMQ, Express, Winston
-```
-
-### System Overview
-
-```
-                          ┌──────────────────────────────────────────────────┐
-                          │                   CLIENT                        │
-                          └──────────────┬───────────────▲──────────────────┘
-                                         │               │
-                                    POST /audio     GET /audio/:id
-                                         │               │
-┌────────────────────────────────────────▼───────────────┴──────────────────────┐
-│  PRESENTATION                                                                 │
-│  ┌─────────────────────────────────────────────────────────────────────────┐  │
-│  │  AudioController  ──────────►  Zod Validation  ──────►  errorHandler   │  │
-│  └────────┬──────────────────────────────────────────────────┬────────────┘  │
-└───────────┼──────────────────────────────────────────────────┼────────────────┘
-            │                                                  │
-┌───────────▼──────────────────────────────────────────────────▼────────────────┐
-│  APPLICATION                                                                  │
-│  ┌──────────────────────┐   ┌───────────────────────┐   ┌────────────────┐   │
-│  │  UploadAudioUseCase  │   │ GetAudioStatusUseCase │   │ ProcessJobUC   │   │
-│  │                      │   │                       │   │  (worker)      │   │
-│  │  AudioTrack.create() │   │  Cache hit? ──► DTO   │   │  start()       │   │
-│  │  ProcessingJob.create│   │  Cache miss?          │   │  simulate()    │   │
-│  │  save both           │   │    ──► DB ──► cache   │   │  complete()    │   │
-│  │  publish to queue    │   │    ──► DTO            │   │  invalidate    │   │
-│  └──────┬───────────────┘   └──────┬────────────────┘   └──────┬─────────┘   │
-└─────────┼──────────────────────────┼───────────────────────────┼─────────────┘
-          │                          │                           │
-          │   ┌──────────────────────┼───────────────────────────┼──────────┐
-          │   │  DOMAIN              │                           │          │
-          │   │  ┌───────────────────┼───┐   ┌───────────────────┼──────┐   │
-          │   │  │    AudioTrack     │   │   │   ProcessingJob   │      │   │
-          │   │  │  ┌─────────────┐  │   │   │  ┌────────────┐  │      │   │
-          │   │  │  │ #status     │  │   │   │  │ #status    │  │      │   │
-          │   │  │  │ #duration   │  │   │   │  │ #startedAt │  │      │   │
-          │   │  │  └─────────────┘  │   │   │  │ #errorMsg  │  │      │   │
-          │   │  │  PENDING          │   │   │  └────────────┘  │      │   │
-          │   │  │   └► PROCESSING   │   │   │  PENDING         │      │   │
-          │   │  │       ├► READY    │   │   │   └► PROCESSING  │      │   │
-          │   │  │       └► FAILED   │   │   │       ├► COMPLETED      │   │
-          │   │  └───────────────────┘   │   │       └► FAILED  │      │   │
-          │   │                          │   └──────────────────┘      │   │
-          │   │  ┌──────────────────┐    │   ┌──────────────────┐      │   │
-          │   │  │ IAudioTrackRepo  │◄───┘   │ IProcessingJobRepo│◄────┘   │
-          │   │  └────────┬─────────┘        └────────┬─────────┘          │
-          │   └───────────┼───────────────────────────┼────────────────────┘
-          │               │                           │
-┌─────────▼───────────────▼───────────────────────────▼────────────────────────┐
-│  INFRASTRUCTURE                                                               │
-│                                                                               │
-│  ┌──────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌─────────────┐  │
-│  │   MongoDB     │  │     Redis        │  │  RabbitMQ     │  │  Winston    │  │
-│  │              │  │                  │  │               │  │             │  │
-│  │  AudioTrack  │  │  RedisCacheSvc   │  │  Publisher    │  │  ILogger    │  │
-│  │  MongoRepo   │  │                  │  │  Consumer     │  │  port impl  │  │
-│  │              │  │  TTL: 5s/5min    │  │               │  │             │  │
-│  │  ProcessJob  │  │  (terminal vs    │  │  audio.jobs   │  │  dev: color │  │
-│  │  MongoRepo   │  │   in-flight)     │  │  audio.dlq    │  │  prod: JSON │  │
-│  └──────┬───────┘  └───────┬──────────┘  └──────┬────────┘  └─────────────┘  │
-└─────────┼──────────────────┼────────────────────┼────────────────────────────┘
-          │                  │                    │
-          ▼                  ▼                    ▼
-    ┌──────────┐      ┌──────────┐        ┌──────────────┐
-    │ MongoDB  │      │  Redis   │        │  RabbitMQ    │
-    │ Server   │      │  Server  │        │  Broker      │
-    └──────────┘      └──────────┘        └──────────────┘
+infrastructure/   MongoDB, Redis, RabbitMQ, Express, ffmpeg, Winston
 ```
 
 ### Request Flow
 
 ```
-  Upload:   Client ──► Controller ──► UploadAudioUseCase ──► MongoDB + RabbitMQ
-                                                                      │
-  Worker:                              ProcessJobUseCase ◄─── Consumer ◄┘
-                                            │
-                                       MongoDB (update) + Redis (invalidate)
+  Upload:   Client ──► multer ──► AudioController ──► UploadAudioUseCase
+                                                          │
+                                    AudioTrack + ProcessingJob ──► MongoDB
+                                                          │
+                                              Job message ──► RabbitMQ
+                                                                  │
+  Worker:                         ProcessJobUseCase ◄── Consumer ◄┘
+                                       │
+                                  ffmpeg (apply effect)
+                                       │
+                                  MongoDB (READY) + Redis (invalidate)
 
-  Status:   Client ──► Controller ──► GetAudioStatusUseCase
-                                            │
-                                      Redis hit? ──► return cached DTO
-                                      Redis miss? ──► MongoDB ──► cache ──► return
+  Status:   Client ──► AudioController ──► GetAudioStatusUseCase
+                                               │
+                                         Redis hit? ──► cached DTO
+                                         Redis miss? ──► MongoDB ──► cache
+
+  Download: Client ──► AudioController ──► DownloadAudioUseCase ──► stream file
 ```
 
 **Key patterns:**
 - Result/Either monad for error handling (no throw in domain/application)
-- Port & Adapter for all infrastructure (repositories, cache, queue publisher)
+- Port & Adapter for all infrastructure (repositories, cache, queue, audio processor)
 - Saga compensation for multi-entity consistency in async processing
-- TDD with 120+ tests (unit + integration)
+- API key authentication on protected routes
+- TDD with 140+ tests (unit + integration + contract)
 
 Architecture decisions are documented in [`docs/decisions/`](docs/decisions/).
 
 ## Endpoints
 
-| Method | Path               | Description              | Status |
-|--------|--------------------|--------------------------|--------|
-| POST   | /api/v1/audio      | Upload audio track       | 202    |
-| GET    | /api/v1/audio/:id  | Get audio track status   | 200    |
-| GET    | /api/v1/health     | Health check             | 200    |
+| Method | Path                       | Auth | Description              | Status |
+|--------|----------------------------|------|--------------------------|--------|
+| POST   | /api/v1/audio              | Yes  | Upload audio + process   | 202    |
+| GET    | /api/v1/audio/:id          | Yes  | Get audio track status   | 200    |
+| GET    | /api/v1/audio/:id/download | Yes  | Download processed audio | 200    |
+| GET    | /api/v1/health             | No   | Health check             | 200    |
+
+Authentication: send `x-api-key` header. Set `API_KEY` in `.env` to enable (disabled by default in dev).
 
 ### POST /api/v1/audio
 
-```json
-{
-  "filename": "song.mp3",
-  "mimeType": "audio/mpeg",
-  "sizeInBytes": 1048576,
-  "effect": "NORMALIZE"
-}
-```
-
-Available effects: `NORMALIZE`, `REVERB`, `ECHO`, `PITCH_SHIFT`, `NOISE_REDUCTION`
+Multipart form-data:
+- `file`: audio file (mp3, wav, ogg, flac, aac, webm — max 50MB)
+- `effect`: one of `NORMALIZE`, `REVERB`, `ECHO`, `PITCH_SHIFT`, `NOISE_REDUCTION`
 
 Response `202 Accepted`:
 ```json
@@ -148,10 +87,11 @@ Response `200 OK`:
   "sizeInBytes": 1048576,
   "status": "READY",
   "durationSeconds": 243.5,
+  "downloadReady": true,
   "createdAt": "2024-01-01T00:00:00.000Z",
   "job": {
     "jobId": "uuid",
-    "effect": "NORMALIZE",
+    "effect": "REVERB",
     "status": "COMPLETED",
     "startedAt": "2024-01-01T00:01:00.000Z",
     "completedAt": "2024-01-01T00:01:30.000Z"
@@ -159,16 +99,23 @@ Response `200 OK`:
 }
 ```
 
+### GET /api/v1/audio/:id/download
+
+Returns the processed audio file as a binary stream. Only available when `status` is `READY`.
+
 ## Tech Stack
 
 - **Runtime:** Node.js 22 + TypeScript 5
-- **HTTP:** Express 4 + Zod validation + Helmet + CORS
+- **HTTP:** Express 4 + Zod validation + Helmet + CORS + rate limiting
 - **Database:** MongoDB 7 (Mongoose ODM)
-- **Cache:** Redis 7 (ioredis)
+- **Cache:** Redis 7 (ioredis) with TTL strategy (5s in-flight, 5min terminal)
 - **Queue:** RabbitMQ 3 (amqplib) with Dead Letter Queue
+- **Audio:** ffmpeg via fluent-ffmpeg (normalize, reverb, echo, pitch shift, noise reduction)
+- **Auth:** API key middleware (x-api-key header)
 - **Logging:** Winston (JSON in prod, pretty print in dev)
-- **Testing:** Vitest + mongodb-memory-server
+- **Testing:** Vitest + mongodb-memory-server + Supertest
 - **Linting:** ESLint 9 (flat config) + @typescript-eslint
+- **Deployment:** Docker Compose + Kubernetes manifests
 
 ## Getting Started
 
@@ -185,16 +132,28 @@ git clone https://github.com/jorgeferrando/audio-api.git
 cd audio-api
 npm install
 
-# Start infrastructure
+# Start full stack
+docker compose up
+
+# Open the web UI
+open http://localhost:3000
+```
+
+The web UI includes a demo tone generator — no audio files needed to test.
+
+### Development (without Docker for API/worker)
+
+```bash
+# Start only infrastructure
 docker compose up -d mongodb redis rabbitmq
 
 # Copy environment variables
 cp .env.example .env
 
-# Run the API server
+# Run the API server (hot reload)
 npm run dev
 
-# Run the worker (in a separate terminal)
+# Run the worker in a separate terminal (hot reload)
 npm run dev:worker
 ```
 
@@ -213,49 +172,45 @@ npm run dev:worker
 | `npm run lint`      | Run ESLint                            |
 | `npm run type-check`| Run TypeScript type checker           |
 
-### Docker
-
-```bash
-# Full stack (API + Worker + MongoDB + Redis + RabbitMQ)
-docker compose up
-```
-
 ## Project Structure
 
 ```
 src/
   domain/
-    audio/        AudioTrack entity, repository port
-    job/          ProcessingJob entity, repository port
+    audio/          AudioTrack entity, IAudioTrackRepository port
+    job/            ProcessingJob entity, IProcessingJobRepository port
   application/
-    audio/        UploadAudioUseCase, GetAudioStatusUseCase, DTO
-    job/          ProcessJobUseCase, IJobPublisher port
+    audio/          UploadAudio, GetAudioStatus, DownloadAudio use cases, DTO
+    job/            ProcessJobUseCase, IJobPublisher, IAudioProcessor ports
   infrastructure/
-    db/           Mongoose models, repositories, connection
-    cache/        RedisCacheService
-    queue/        RabbitMQ publisher, consumer, setup
-    logger/       WinstonLogger, ConsoleLogger
-    http/         Express app setup
+    audio/          FfmpegAudioProcessor
+    cache/          RedisCacheService
+    db/             Mongoose models, repositories, connection
+    http/           Express app setup, multer config
+    logger/         WinstonLogger, ConsoleLogger
+    queue/          RabbitMQ publisher, consumer, setup
   presentation/
-    controllers/  AudioController
-    routes/       Audio routes, health routes
-    middlewares/  Error handler
-  shared/         Result, AppError, ILogger, ICacheService
+    controllers/    AudioController
+    middlewares/    API key auth, error handler
+    public/         Web UI (single-page HTML)
+    routes/         Audio routes, health routes
+  shared/           Result, AppError, ILogger, ICacheService
 docs/
-  decisions/      Architecture Decision Records (ADRs)
+  decisions/        Architecture Decision Records (7 ADRs)
+k8s/                Kubernetes manifests (Deployment, Service, ConfigMap, Secret, PVC)
 tests/
-  integration/    MongoDB repository tests
+  integration/      MongoDB repository + HTTP integration tests
 ```
 
 ## Testing
 
 ```bash
-npm test                    # 120+ tests
-npm run test:coverage       # with coverage report
+npm test                    # 140+ tests
+npm run test:coverage       # with coverage report (85%+ statements)
 ```
 
 - **Unit tests:** co-located with implementation (`src/**/*.test.ts`)
-- **Integration tests:** `tests/integration/` (uses mongodb-memory-server)
+- **Integration tests:** `tests/integration/` (mongodb-memory-server + Supertest)
 - **Contract tests:** shared test suites for port implementations (ILogger)
 
 ## License
