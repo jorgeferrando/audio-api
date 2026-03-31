@@ -123,6 +123,19 @@ async save(audio: AudioTrack): Promise<Result<void, DatabaseError>> {
 - Constructor injection only. No service locators, no global singletons.
 - Wire everything in `index.ts` (composition root).
 
+### Test file location
+- **Unit tests:** co-located with the implementation file in `src/`
+  ```
+  src/domain/audio/AudioTrack.ts
+  src/domain/audio/AudioTrack.test.ts   ← same folder
+  ```
+- **Integration tests:** in `tests/integration/` (they cross layers, no single owner in src)
+  ```
+  tests/integration/upload-audio-flow.test.ts
+  ```
+- **Contract test helpers** (e.g. `loggerContract.ts`): co-located with the implementations they test, excluded from coverage and build.
+- `tsconfig.build.json` excludes `**/*.test.ts` and contract helpers — they never go to `dist/`.
+
 ### Commits
 - Conventional commits. No Claude co-author. Jorge's commits only.
 

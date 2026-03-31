@@ -5,11 +5,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/index.ts', 'src/worker.ts'],
+      exclude: ['src/index.ts', 'src/worker.ts', 'src/**/*.test.ts', 'src/**/loggerContract.ts'],
       thresholds: {
         branches: 80,
         functions: 80,
