@@ -13,12 +13,14 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
       await AudioTrackModel.findByIdAndUpdate(
         audio.id,
         {
-          _id:             audio.id,
-          filename:        audio.filename,
-          mimeType:        audio.mimeType,
-          sizeInBytes:     audio.sizeInBytes,
-          status:          audio.status,
-          durationSeconds: audio.durationSeconds,
+          _id:               audio.id,
+          filename:          audio.filename,
+          mimeType:          audio.mimeType,
+          sizeInBytes:       audio.sizeInBytes,
+          filePath:          audio.filePath,
+          processedFilePath: audio.processedFilePath,
+          status:            audio.status,
+          durationSeconds:   audio.durationSeconds,
         },
         { upsert: true, new: true }
       )
@@ -35,13 +37,15 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
       if (!doc) return ok(null)
 
       return ok(AudioTrack.reconstitute({
-        id:              doc._id,
-        filename:        doc.filename,
-        mimeType:        doc.mimeType,
-        sizeInBytes:     doc.sizeInBytes,
-        status:          doc.status,
-        durationSeconds: doc.durationSeconds,
-        createdAt:       doc.createdAt,
+        id:                doc._id,
+        filename:          doc.filename,
+        mimeType:          doc.mimeType,
+        sizeInBytes:       doc.sizeInBytes,
+        filePath:          doc.filePath,
+        processedFilePath: doc.processedFilePath,
+        status:            doc.status,
+        durationSeconds:   doc.durationSeconds,
+        createdAt:         doc.createdAt,
       }))
     } catch (e) {
       this.logger.error('AudioTrackMongoRepository.findById failed', { error: e, id })

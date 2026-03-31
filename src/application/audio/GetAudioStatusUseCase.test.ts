@@ -15,6 +15,7 @@ function makeAudioTrack(): AudioTrack {
     filename: 'song.mp3',
     mimeType: 'audio/mpeg',
     sizeInBytes: 1024,
+    filePath: '/uploads/originals/song.mp3',
   })
   if (!result.isOk()) throw new Error('test setup failed')
   return result.value

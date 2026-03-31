@@ -13,7 +13,7 @@ import { DatabaseError } from '@shared/AppError'
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeTrack(): AudioTrack {
-  const r = AudioTrack.create({ filename: 'song.mp3', mimeType: 'audio/mpeg', sizeInBytes: 1024 })
+  const r = AudioTrack.create({ filename: 'song.mp3', mimeType: 'audio/mpeg', sizeInBytes: 1024, filePath: '/uploads/originals/song.mp3' })
   if (!r.isOk()) throw new Error('setup failed')
   return r.value
 }

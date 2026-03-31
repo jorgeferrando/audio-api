@@ -13,6 +13,7 @@ interface UploadAudioInput {
   mimeType: string
   sizeInBytes: number
   effect: AudioEffect
+  filePath: string
 }
 
 interface UploadAudioOutput {
@@ -51,6 +52,7 @@ export class UploadAudioUseCase {
       filename: input.filename,
       mimeType: input.mimeType,
       sizeInBytes: input.sizeInBytes,
+      filePath: input.filePath,
     })
     if (audioResult.isErr()) return err(audioResult.error)
 

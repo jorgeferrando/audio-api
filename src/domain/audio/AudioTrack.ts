@@ -25,6 +25,7 @@ interface AudioTrackCreateProps {
   filename: string
   mimeType: string
   sizeInBytes: number
+  filePath: string
 }
 
 // Full internal state — used by the private constructor.
@@ -35,6 +36,8 @@ interface AudioTrackConstructorProps {
   filename: string
   mimeType: string
   sizeInBytes: number
+  filePath: string
+  processedFilePath: string | undefined
   status: AudioTrackStatus
   durationSeconds: number | undefined
   createdAt: Date
@@ -46,6 +49,8 @@ export interface AudioTrackPersistence {
   filename: string
   mimeType: string
   sizeInBytes: number
+  filePath: string
+  processedFilePath?: string
   status: AudioTrackStatus
   durationSeconds?: number
   createdAt: Date
@@ -75,20 +80,22 @@ export class AudioTrack {
   readonly filename: string
   readonly mimeType: string
   readonly sizeInBytes: number
+  readonly filePath: string
   readonly createdAt: Date
-  // # = JavaScript native private fields — enforced at runtime, not just compile time.
-  // (TypeScript's `private` keyword is erased in the compiled JS output.)
   #status: AudioTrackStatus
   #durationSeconds?: number
+  #processedFilePath?: string
 
   private constructor(props: AudioTrackConstructorProps) {
-    this.id              = props.id
-    this.filename        = props.filename
-    this.mimeType        = props.mimeType
-    this.sizeInBytes     = props.sizeInBytes
-    this.createdAt       = props.createdAt
-    this.#status         = props.status
-    this.#durationSeconds = props.durationSeconds
+    this.id                = props.id
+    this.filename          = props.filename
+    this.mimeType          = props.mimeType
+    this.sizeInBytes       = props.sizeInBytes
+    this.filePath          = props.filePath
+    this.createdAt         = props.createdAt
+    this.#status           = props.status
+    this.#durationSeconds  = props.durationSeconds
+    this.#processedFilePath = props.processedFilePath
   }
 
   get status(): AudioTrackStatus {
@@ -97,6 +104,14 @@ export class AudioTrack {
 
   get durationSeconds(): number | undefined {
     return this.#durationSeconds
+  }
+
+  get processedFilePath(): string | undefined {
+    return this.#processedFilePath
+  }
+
+  setProcessedFilePath(path: string): void {
+    this.#processedFilePath = path
   }
 
   static create(props: AudioTrackCreateProps): Result<AudioTrack, ValidationError> {
@@ -116,11 +131,17 @@ export class AudioTrack {
       return err(new ValidationError('file exceeds maximum allowed size of 50MB'))
     }
 
+    if (!props.filePath.trim()) {
+      return err(new ValidationError('filePath cannot be empty'))
+    }
+
     return ok(new AudioTrack({
       id: randomUUID(),
       filename: props.filename,
       mimeType: props.mimeType,
       sizeInBytes: props.sizeInBytes,
+      filePath: props.filePath,
+      processedFilePath: undefined,
       status: AudioTrackStatus.PENDING,
       durationSeconds: undefined,
       createdAt: new Date(),
@@ -134,6 +155,8 @@ export class AudioTrack {
       filename: data.filename,
       mimeType: data.mimeType,
       sizeInBytes: data.sizeInBytes,
+      filePath: data.filePath,
+      processedFilePath: data.processedFilePath,
       status: data.status,
       durationSeconds: data.durationSeconds,
       createdAt: data.createdAt,

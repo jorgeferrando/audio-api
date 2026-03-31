@@ -15,6 +15,8 @@ export interface AudioTrackDocument {
   filename: string
   mimeType: string
   sizeInBytes: number
+  filePath: string
+  processedFilePath?: string
   status: AudioTrackStatus
   durationSeconds?: number
   createdAt: Date
@@ -25,9 +27,11 @@ const audioTrackSchema = new Schema<AudioTrackDocument>(
     _id:             { type: String, required: true },
     filename:        { type: String, required: true },
     mimeType:        { type: String, required: true },
-    sizeInBytes:     { type: Number, required: true },
-    status:          { type: String, enum: Object.values(AudioTrackStatus), required: true },
-    durationSeconds: { type: Number },
+    sizeInBytes:       { type: Number, required: true },
+    filePath:          { type: String, required: true },
+    processedFilePath: { type: String },
+    status:            { type: String, enum: Object.values(AudioTrackStatus), required: true },
+    durationSeconds:   { type: Number },
   },
   {
     // Disable Mongoose's auto _id (we provide our own UUID string)

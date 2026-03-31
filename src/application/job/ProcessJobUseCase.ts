@@ -133,6 +133,7 @@ export class ProcessJobUseCase {
       filename:    audio.filename,
       mimeType:    audio.mimeType,
       sizeInBytes: audio.sizeInBytes,
+      filePath:    audio.filePath,
       status:      AudioTrackStatus.PROCESSING,
       createdAt:   audio.createdAt,
     })

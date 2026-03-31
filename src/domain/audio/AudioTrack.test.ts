@@ -6,19 +6,31 @@ const validProps = {
   filename: 'track.mp3',
   mimeType: 'audio/mpeg',
   sizeInBytes: 1024 * 1024, // 1MB
+  filePath: '/uploads/originals/abc.mp3',
 }
 
 describe('AudioTrack.create', () => {
-  it('creates a valid audio track', () => {
+  it('creates a valid audio track with filePath', () => {
     const result = AudioTrack.create(validProps)
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.filename).toBe('track.mp3')
       expect(result.value.mimeType).toBe('audio/mpeg')
       expect(result.value.sizeInBytes).toBe(1024 * 1024)
+      expect(result.value.filePath).toBe('/uploads/originals/abc.mp3')
+      expect(result.value.processedFilePath).toBeUndefined()
       expect(result.value.status).toBe(AudioTrackStatus.PENDING)
       expect(result.value.id).toBeDefined()
       expect(result.value.createdAt).toBeInstanceOf(Date)
+    }
+  })
+
+  it('rejects empty filePath', () => {
+    const result = AudioTrack.create({ ...validProps, filePath: '' })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error).toBeInstanceOf(ValidationError)
+      expect(result.error.message).toContain('filePath')
     }
   })
 
@@ -67,6 +79,8 @@ describe('AudioTrack.reconstitute', () => {
     filename: 'track.mp3',
     mimeType: 'audio/mpeg',
     sizeInBytes: 1024,
+    filePath: '/uploads/originals/existing.mp3',
+    processedFilePath: '/uploads/processed/existing_NORMALIZE.mp3',
     status: AudioTrackStatus.READY,
     durationSeconds: 180,
     createdAt: new Date('2024-01-01'),
@@ -92,14 +106,34 @@ describe('AudioTrack.reconstitute', () => {
     expect(track.createdAt).toEqual(new Date('2024-01-01'))
   })
 
-  it('restores a FAILED track without durationSeconds', () => {
+  it('restores filePath and processedFilePath', () => {
+    const track = AudioTrack.reconstitute(persistedData)
+    expect(track.filePath).toBe('/uploads/originals/existing.mp3')
+    expect(track.processedFilePath).toBe('/uploads/processed/existing_NORMALIZE.mp3')
+  })
+
+  it('restores a FAILED track without durationSeconds or processedFilePath', () => {
     const track = AudioTrack.reconstitute({
       ...persistedData,
       status: AudioTrackStatus.FAILED,
       durationSeconds: undefined,
+      processedFilePath: undefined,
     })
     expect(track.status).toBe(AudioTrackStatus.FAILED)
     expect(track.durationSeconds).toBeUndefined()
+    expect(track.processedFilePath).toBeUndefined()
+  })
+})
+
+describe('AudioTrack.setProcessedFilePath', () => {
+  it('sets the processed file path', () => {
+    const result = AudioTrack.create(validProps)
+    if (!result.isOk()) throw new Error('setup failed')
+    const track = result.value
+
+    track.setProcessedFilePath('/uploads/processed/out.mp3')
+
+    expect(track.processedFilePath).toBe('/uploads/processed/out.mp3')
   })
 })
 

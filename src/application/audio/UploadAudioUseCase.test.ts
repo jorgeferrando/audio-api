@@ -46,6 +46,7 @@ describe('UploadAudioUseCase', () => {
     mimeType: 'audio/mpeg',
     sizeInBytes: 1024 * 1024, // 1MB
     effect: AudioEffect.NORMALIZE,
+    filePath: '/uploads/originals/song.mp3',
   }
 
   beforeEach(() => {
