@@ -1,5 +1,6 @@
 import dotenv from 'dotenv'
 import Redis from 'ioredis'
+import rateLimit from 'express-rate-limit'
 import { WinstonLogger } from '@infrastructure/logger/WinstonLogger'
 import { connectMongo } from '@infrastructure/db/mongoConnection'
 import { connectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
@@ -9,6 +10,7 @@ import { RedisCacheService } from '@infrastructure/cache/RedisCacheService'
 import { RabbitMQPublisher } from '@infrastructure/queue/RabbitMQPublisher'
 import { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
+import { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
 import { AudioController } from '@presentation/controllers/AudioController'
 import { createApp } from '@infrastructure/http/app'
 
@@ -37,10 +39,18 @@ async function main(): Promise<void> {
   // ── Use cases ─────────────────────────────────────────────────────────
   const uploadAudio    = new UploadAudioUseCase(audioRepo, jobRepo, publisher, logger)
   const getAudioStatus = new GetAudioStatusUseCase(audioRepo, jobRepo, cache)
+  const downloadAudio  = new DownloadAudioUseCase(audioRepo)
 
   // ── HTTP ──────────────────────────────────────────────────────────────
-  const controller = new AudioController(uploadAudio, getAudioStatus)
-  const app        = createApp(controller, logger)
+  const limiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100,            // 100 requests per window per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+
+  const controller = new AudioController(uploadAudio, getAudioStatus, downloadAudio)
+  const app        = createApp(controller, logger, limiter)
 
   app.listen(PORT, () => {
     logger.info(`API server listening on port ${PORT}`)

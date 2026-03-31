@@ -1,5 +1,5 @@
 import path from 'path'
-import express from 'express'
+import express, { type RequestHandler } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import type { ILogger } from '@shared/ILogger'
@@ -8,14 +8,11 @@ import { audioRoutes } from '@presentation/routes/audioRoutes'
 import { healthRoutes } from '@presentation/routes/healthRoutes'
 import { errorHandler } from '@presentation/middlewares/errorHandler'
 
-/**
- * Creates and configures the Express app.
- *
- * Receives the controller (already wired with use cases) so the app
- * itself has no knowledge of domain or infrastructure. The composition
- * root builds the dependency graph and passes the controller in.
- */
-export function createApp(controller: AudioController, logger: ILogger): express.Application {
+export function createApp(
+  controller: AudioController,
+  logger: ILogger,
+  limiter?: RequestHandler,
+): express.Application {
   const app = express()
 
   // ── Security & parsing ──────────────────────────────────────────────────
@@ -31,6 +28,8 @@ export function createApp(controller: AudioController, logger: ILogger): express
   }))
   app.use(cors())
   app.use(express.json())
+
+  if (limiter) app.use('/api', limiter)
 
   // ── Static UI ────────────────────────────────────────────────────────────
   app.use(express.static(path.resolve(process.cwd(), 'src', 'presentation', 'public')))
