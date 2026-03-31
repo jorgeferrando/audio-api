@@ -4,7 +4,6 @@ import { AudioTrack } from '@domain/audio/AudioTrack'
 import { ProcessingJob, AudioEffect } from '@domain/job/ProcessingJob'
 import { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
 import { IProcessingJobRepository } from '@domain/job/IProcessingJobRepository'
-import { ILogger } from '@shared/ILogger'
 import { ok, err } from '@shared/Result'
 import { DatabaseError } from '@shared/AppError'
 
@@ -39,26 +38,17 @@ const makeJobRepo = (): IProcessingJobRepository => ({
   findByAudioTrackId: vi.fn(),
 })
 
-const makeLogger = (): ILogger => ({
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  debug: vi.fn(),
-})
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('GetAudioStatusUseCase', () => {
   let audioRepo: IAudioTrackRepository
   let jobRepo: IProcessingJobRepository
-  let logger: ILogger
   let useCase: GetAudioStatusUseCase
 
   beforeEach(() => {
     audioRepo = makeAudioRepo()
     jobRepo   = makeJobRepo()
-    logger    = makeLogger()
-    useCase   = new GetAudioStatusUseCase(audioRepo, jobRepo, logger)
+    useCase   = new GetAudioStatusUseCase(audioRepo, jobRepo)
   })
 
   it('returns audio and job when both exist', async () => {

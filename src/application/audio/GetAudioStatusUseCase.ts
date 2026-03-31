@@ -1,6 +1,5 @@
 import { type Result, ok, err } from '@shared/Result'
 import { AppError, NotFoundError } from '@shared/AppError'
-import { ILogger } from '@shared/ILogger'
 import { AudioTrack } from '@domain/audio/AudioTrack'
 import { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
 import { ProcessingJob } from '@domain/job/ProcessingJob'
@@ -19,7 +18,6 @@ export class GetAudioStatusUseCase {
   constructor(
     private readonly audioRepo: IAudioTrackRepository,
     private readonly jobRepo: IProcessingJobRepository,
-    private readonly logger: ILogger,
   ) {}
 
   async execute(input: GetAudioStatusInput): Promise<Result<GetAudioStatusOutput, AppError>> {
