@@ -21,10 +21,34 @@ const VALID_MIME_TYPES = new Set([
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024 // 50MB
 
-interface AudioTrackProps {
+interface AudioTrackCreateProps {
   filename: string
   mimeType: string
   sizeInBytes: number
+}
+
+// Full internal state — used by the private constructor.
+// Separating create props from constructor props lets create() set defaults
+// (id, createdAt, initial status) while reconstitute() restores persisted state.
+interface AudioTrackConstructorProps {
+  id: string
+  filename: string
+  mimeType: string
+  sizeInBytes: number
+  status: AudioTrackStatus
+  durationSeconds: number | undefined
+  createdAt: Date
+}
+
+// Shape of the data the repository reads from the DB and passes to reconstitute().
+export interface AudioTrackPersistence {
+  id: string
+  filename: string
+  mimeType: string
+  sizeInBytes: number
+  status: AudioTrackStatus
+  durationSeconds?: number
+  createdAt: Date
 }
 
 /**
@@ -32,10 +56,10 @@ interface AudioTrackProps {
  *
  * Design decisions:
  *
- * 1. Private constructor + static `create()` factory.
- *    A constructor cannot return Result<T, E>, so validation would have to throw.
- *    The factory method returns Result and keeps the constructor unreachable from outside,
- *    guaranteeing that every AudioTrack instance is valid by construction.
+ * 1. Private constructor + two static factories.
+ *    - `create()`: validates input, generates id, sets initial state. Used on upload.
+ *    - `reconstitute()`: bypasses validation, restores full state from persistence.
+ *      Used by repositories when reading from DB — data was already validated before saving.
  *
  * 2. Immutable identity + mutable state via private fields.
  *    id, filename, mimeType, sizeInBytes and createdAt never change after creation (readonly).
@@ -57,13 +81,14 @@ export class AudioTrack {
   #status: AudioTrackStatus
   #durationSeconds?: number
 
-  private constructor(props: AudioTrackProps) {
-    this.id            = randomUUID()
-    this.filename      = props.filename
-    this.mimeType      = props.mimeType
-    this.sizeInBytes   = props.sizeInBytes
-    this.createdAt     = new Date()
-    this.#status       = AudioTrackStatus.PENDING
+  private constructor(props: AudioTrackConstructorProps) {
+    this.id              = props.id
+    this.filename        = props.filename
+    this.mimeType        = props.mimeType
+    this.sizeInBytes     = props.sizeInBytes
+    this.createdAt       = props.createdAt
+    this.#status         = props.status
+    this.#durationSeconds = props.durationSeconds
   }
 
   get status(): AudioTrackStatus {
@@ -74,7 +99,7 @@ export class AudioTrack {
     return this.#durationSeconds
   }
 
-  static create(props: AudioTrackProps): Result<AudioTrack, ValidationError> {
+  static create(props: AudioTrackCreateProps): Result<AudioTrack, ValidationError> {
     if (!props.filename.trim()) {
       return err(new ValidationError('filename cannot be empty'))
     }
@@ -91,7 +116,28 @@ export class AudioTrack {
       return err(new ValidationError('file exceeds maximum allowed size of 50MB'))
     }
 
-    return ok(new AudioTrack(props))
+    return ok(new AudioTrack({
+      id: randomUUID(),
+      filename: props.filename,
+      mimeType: props.mimeType,
+      sizeInBytes: props.sizeInBytes,
+      status: AudioTrackStatus.PENDING,
+      durationSeconds: undefined,
+      createdAt: new Date(),
+    }))
+  }
+
+  /** Restores an AudioTrack from persisted data. Skips validation — data is trusted. */
+  static reconstitute(data: AudioTrackPersistence): AudioTrack {
+    return new AudioTrack({
+      id: data.id,
+      filename: data.filename,
+      mimeType: data.mimeType,
+      sizeInBytes: data.sizeInBytes,
+      status: data.status,
+      durationSeconds: data.durationSeconds,
+      createdAt: data.createdAt,
+    })
   }
 
   markAsProcessing(): Result<void, AppError> {

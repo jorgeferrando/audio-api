@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AudioTrack, AudioTrackStatus } from './AudioTrack'
+import { AudioTrack, AudioTrackStatus, type AudioTrackPersistence } from './AudioTrack'
 import { ValidationError } from '@shared/AppError'
 
 const validProps = {
@@ -58,6 +58,48 @@ describe('AudioTrack.create', () => {
     for (const mimeType of validTypes) {
       expect(AudioTrack.create({ ...validProps, mimeType }).isOk()).toBe(true)
     }
+  })
+})
+
+describe('AudioTrack.reconstitute', () => {
+  const persistedData: AudioTrackPersistence = {
+    id: 'existing-uuid',
+    filename: 'track.mp3',
+    mimeType: 'audio/mpeg',
+    sizeInBytes: 1024,
+    status: AudioTrackStatus.READY,
+    durationSeconds: 180,
+    createdAt: new Date('2024-01-01'),
+  }
+
+  it('restores the entity with the persisted id', () => {
+    const track = AudioTrack.reconstitute(persistedData)
+    expect(track.id).toBe('existing-uuid')
+  })
+
+  it('restores the persisted status (not always PENDING)', () => {
+    const track = AudioTrack.reconstitute(persistedData)
+    expect(track.status).toBe(AudioTrackStatus.READY)
+  })
+
+  it('restores durationSeconds', () => {
+    const track = AudioTrack.reconstitute(persistedData)
+    expect(track.durationSeconds).toBe(180)
+  })
+
+  it('restores createdAt', () => {
+    const track = AudioTrack.reconstitute(persistedData)
+    expect(track.createdAt).toEqual(new Date('2024-01-01'))
+  })
+
+  it('restores a FAILED track without durationSeconds', () => {
+    const track = AudioTrack.reconstitute({
+      ...persistedData,
+      status: AudioTrackStatus.FAILED,
+      durationSeconds: undefined,
+    })
+    expect(track.status).toBe(AudioTrackStatus.FAILED)
+    expect(track.durationSeconds).toBeUndefined()
   })
 })
 
