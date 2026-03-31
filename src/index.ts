@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
 import Redis from 'ioredis'
-import rateLimit from 'express-rate-limit'
 import { WinstonLogger } from '@infrastructure/logger/WinstonLogger'
 import { connectMongo, disconnectMongo } from '@infrastructure/db/mongoConnection'
 import { connectRabbitMQ, disconnectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
@@ -48,15 +47,8 @@ async function main(): Promise<void> {
   const downloadAudio  = new DownloadAudioUseCase(audioRepo)
 
   // ── HTTP ──────────────────────────────────────────────────────────────
-  const limiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 100,            // 100 requests per window per IP
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
-
   const controller = new AudioController(uploadAudio, getAudioStatus, downloadAudio)
-  const app        = createApp(controller, logger, limiter)
+  const app        = createApp(controller, logger)
 
   const server = app.listen(PORT, () => {
     logger.info(`API server listening on port ${PORT}`)

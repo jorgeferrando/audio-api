@@ -1,7 +1,8 @@
 import path from 'path'
-import express, { type RequestHandler } from 'express'
+import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import type { ILogger } from '@shared/ILogger'
 import type { AudioController } from '@presentation/controllers/AudioController'
 import { audioRoutes } from '@presentation/routes/audioRoutes'
@@ -11,7 +12,6 @@ import { errorHandler } from '@presentation/middlewares/errorHandler'
 export function createApp(
   controller: AudioController,
   logger: ILogger,
-  limiter?: RequestHandler,
 ): express.Application {
   const app = express()
 
@@ -29,7 +29,12 @@ export function createApp(
   app.use(cors())
   app.use(express.json())
 
-  if (limiter) app.use('/api', limiter)
+  app.use('/api', rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }))
 
   // ── Static UI ────────────────────────────────────────────────────────────
   app.use(express.static(path.resolve(process.cwd(), 'src', 'presentation', 'public')))
