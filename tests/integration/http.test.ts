@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 import { AudioController } from '@presentation/controllers/AudioController'
+import type { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
 import { audioRoutes } from '@presentation/routes/audioRoutes'
 import { healthRoutes } from '@presentation/routes/healthRoutes'
 import { errorHandler } from '@presentation/middlewares/errorHandler'
@@ -51,9 +52,11 @@ const makeGetStatusUseCase = () => ({
 function buildApp(getStatusOverride?: ReturnType<typeof makeGetStatusUseCase>) {
   const upload    = makeUploadUseCase()
   const getStatus = getStatusOverride ?? makeGetStatusUseCase()
+  const download = { execute: vi.fn().mockResolvedValue(err(new NotFoundError('AudioTrack', 'x'))) }
   const controller = new AudioController(
     upload as unknown as UploadAudioUseCase,
     getStatus as unknown as GetAudioStatusUseCase,
+    download as unknown as DownloadAudioUseCase,
   )
   const logger = makeLogger()
   const app = express()
@@ -104,10 +107,10 @@ describe('HTTP Integration', () => {
   })
 
   describe('GET /api/v1/audio/:id/download', () => {
-    it('returns 409 when track is not ready', async () => {
-      const res = await request(buildApp()).get('/api/v1/audio/track-1/download')
-      expect(res.status).toBe(409)
-      expect(res.body.error).toBe('NOT_READY')
+    it('returns 404 when track does not exist', async () => {
+      const res = await request(buildApp()).get('/api/v1/audio/unknown/download')
+      expect(res.status).toBe(404)
+      expect(res.body.error).toBe('NOT_FOUND')
     })
   })
 

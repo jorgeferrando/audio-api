@@ -2,23 +2,21 @@ import { createReadStream } from 'fs'
 import { type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { StatusCodes } from 'http-status-codes'
-import { ValidationError, AppError } from '@shared/AppError'
+import { ValidationError } from '@shared/AppError'
 import { AudioEffect } from '@domain/job/ProcessingJob'
 import type { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import type { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
+import type { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
 
 const effectSchema = z.object({
   effect: z.nativeEnum(AudioEffect, { message: 'invalid audio effect' }),
 })
 
-/**
- * Thin controller — validates the HTTP request, delegates to use cases,
- * and maps the Result to an HTTP response. No business logic here.
- */
 export class AudioController {
   constructor(
     private readonly uploadAudio: UploadAudioUseCase,
     private readonly getAudioStatus: GetAudioStatusUseCase,
+    private readonly downloadAudio: DownloadAudioUseCase,
   ) {}
 
   upload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -63,7 +61,7 @@ export class AudioController {
   }
 
   download = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const result = await this.getAudioStatus.execute({
+    const result = await this.downloadAudio.execute({
       audioTrackId: req.params.id,
     })
 
@@ -72,14 +70,9 @@ export class AudioController {
       return
     }
 
-    const dto = result.value
-    if (dto.status !== 'READY' || !dto.processedFilePath) {
-      next(new AppError('Audio is not ready for download', 'NOT_READY'))
-      return
-    }
-
-    res.setHeader('Content-Disposition', `attachment; filename="processed_${dto.filename}"`)
-    res.setHeader('Content-Type', dto.mimeType)
-    createReadStream(dto.processedFilePath).pipe(res)
+    const { filePath, filename, mimeType } = result.value
+    res.setHeader('Content-Disposition', `attachment; filename="processed_${filename}"`)
+    res.setHeader('Content-Type', mimeType)
+    createReadStream(filePath).pipe(res)
   }
 }

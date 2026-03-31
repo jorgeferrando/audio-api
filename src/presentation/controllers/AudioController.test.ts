@@ -5,8 +5,9 @@ import { AudioTrackStatus } from '@domain/audio/AudioTrack'
 import { JobStatus } from '@domain/job/ProcessingJob'
 import type { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import type { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
+import type { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
 import { ok, err } from '@shared/Result'
-import { ValidationError, NotFoundError } from '@shared/AppError'
+import { ValidationError, NotFoundError, AppError } from '@shared/AppError'
 import type { Request, Response, NextFunction } from 'express'
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ const makeGetStatusUseCase = () => ({
     mimeType:        'audio/mpeg',
     sizeInBytes:     1024,
     status:          AudioTrackStatus.PENDING,
+    downloadReady:   false,
     createdAt:       new Date(),
     job: {
       jobId:   'job-1',
@@ -29,6 +31,10 @@ const makeGetStatusUseCase = () => ({
       status:  JobStatus.PENDING,
     },
   })),
+})
+
+const makeDownloadUseCase = () => ({
+  execute: vi.fn().mockResolvedValue(err(new AppError('Audio is not ready for download', 'NOT_READY'))),
 })
 
 const makeReq = (overrides: Partial<Request> = {}) => ({
@@ -52,15 +58,18 @@ const makeRes = () => {
 describe('AudioController', () => {
   let uploadUseCase: ReturnType<typeof makeUploadUseCase>
   let getStatusUseCase: ReturnType<typeof makeGetStatusUseCase>
+  let downloadUseCase: ReturnType<typeof makeDownloadUseCase>
   let controller: AudioController
   let next: NextFunction
 
   beforeEach(() => {
     uploadUseCase    = makeUploadUseCase()
     getStatusUseCase = makeGetStatusUseCase()
+    downloadUseCase  = makeDownloadUseCase()
     controller       = new AudioController(
       uploadUseCase as unknown as UploadAudioUseCase,
       getStatusUseCase as unknown as GetAudioStatusUseCase,
+      downloadUseCase as unknown as DownloadAudioUseCase,
     )
     next = vi.fn()
   })
@@ -153,7 +162,7 @@ describe('AudioController', () => {
   // ─── download ──────────────────────────────────────────────────────────
 
   describe('download()', () => {
-    it('calls next with NOT_READY if track is not ready', async () => {
+    it('calls next with NOT_READY when track is not processed yet', async () => {
       const req = makeReq({ params: { id: 'track-1' } })
       const res = makeRes()
 
@@ -162,8 +171,8 @@ describe('AudioController', () => {
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: 'NOT_READY' }))
     })
 
-    it('calls next with NotFoundError if track does not exist', async () => {
-      getStatusUseCase.execute.mockResolvedValue(
+    it('calls next with NOT_FOUND when track does not exist', async () => {
+      downloadUseCase.execute.mockResolvedValue(
         err(new NotFoundError('AudioTrack', 'unknown'))
       )
       const req = makeReq({ params: { id: 'unknown' } })
