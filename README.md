@@ -15,6 +15,89 @@ domain/           Entities, value objects, repository ports
 infrastructure/   MongoDB, Redis, RabbitMQ, Express, Winston
 ```
 
+### System Overview
+
+```
+                          ┌──────────────────────────────────────────────────┐
+                          │                   CLIENT                        │
+                          └──────────────┬───────────────▲──────────────────┘
+                                         │               │
+                                    POST /audio     GET /audio/:id
+                                         │               │
+┌────────────────────────────────────────▼───────────────┴──────────────────────┐
+│  PRESENTATION                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │  AudioController  ──────────►  Zod Validation  ──────►  errorHandler   │  │
+│  └────────┬──────────────────────────────────────────────────┬────────────┘  │
+└───────────┼──────────────────────────────────────────────────┼────────────────┘
+            │                                                  │
+┌───────────▼──────────────────────────────────────────────────▼────────────────┐
+│  APPLICATION                                                                  │
+│  ┌──────────────────────┐   ┌───────────────────────┐   ┌────────────────┐   │
+│  │  UploadAudioUseCase  │   │ GetAudioStatusUseCase │   │ ProcessJobUC   │   │
+│  │                      │   │                       │   │  (worker)      │   │
+│  │  AudioTrack.create() │   │  Cache hit? ──► DTO   │   │  start()       │   │
+│  │  ProcessingJob.create│   │  Cache miss?          │   │  simulate()    │   │
+│  │  save both           │   │    ──► DB ──► cache   │   │  complete()    │   │
+│  │  publish to queue    │   │    ──► DTO            │   │  invalidate    │   │
+│  └──────┬───────────────┘   └──────┬────────────────┘   └──────┬─────────┘   │
+└─────────┼──────────────────────────┼───────────────────────────┼─────────────┘
+          │                          │                           │
+          │   ┌──────────────────────┼───────────────────────────┼──────────┐
+          │   │  DOMAIN              │                           │          │
+          │   │  ┌───────────────────┼───┐   ┌───────────────────┼──────┐   │
+          │   │  │    AudioTrack     │   │   │   ProcessingJob   │      │   │
+          │   │  │  ┌─────────────┐  │   │   │  ┌────────────┐  │      │   │
+          │   │  │  │ #status     │  │   │   │  │ #status    │  │      │   │
+          │   │  │  │ #duration   │  │   │   │  │ #startedAt │  │      │   │
+          │   │  │  └─────────────┘  │   │   │  │ #errorMsg  │  │      │   │
+          │   │  │  PENDING          │   │   │  └────────────┘  │      │   │
+          │   │  │   └► PROCESSING   │   │   │  PENDING         │      │   │
+          │   │  │       ├► READY    │   │   │   └► PROCESSING  │      │   │
+          │   │  │       └► FAILED   │   │   │       ├► COMPLETED      │   │
+          │   │  └───────────────────┘   │   │       └► FAILED  │      │   │
+          │   │                          │   └──────────────────┘      │   │
+          │   │  ┌──────────────────┐    │   ┌──────────────────┐      │   │
+          │   │  │ IAudioTrackRepo  │◄───┘   │ IProcessingJobRepo│◄────┘   │
+          │   │  └────────┬─────────┘        └────────┬─────────┘          │
+          │   └───────────┼───────────────────────────┼────────────────────┘
+          │               │                           │
+┌─────────▼───────────────▼───────────────────────────▼────────────────────────┐
+│  INFRASTRUCTURE                                                               │
+│                                                                               │
+│  ┌──────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌─────────────┐  │
+│  │   MongoDB     │  │     Redis        │  │  RabbitMQ     │  │  Winston    │  │
+│  │              │  │                  │  │               │  │             │  │
+│  │  AudioTrack  │  │  RedisCacheSvc   │  │  Publisher    │  │  ILogger    │  │
+│  │  MongoRepo   │  │                  │  │  Consumer     │  │  port impl  │  │
+│  │              │  │  TTL: 5s/5min    │  │               │  │             │  │
+│  │  ProcessJob  │  │  (terminal vs    │  │  audio.jobs   │  │  dev: color │  │
+│  │  MongoRepo   │  │   in-flight)     │  │  audio.dlq    │  │  prod: JSON │  │
+│  └──────┬───────┘  └───────┬──────────┘  └──────┬────────┘  └─────────────┘  │
+└─────────┼──────────────────┼────────────────────┼────────────────────────────┘
+          │                  │                    │
+          ▼                  ▼                    ▼
+    ┌──────────┐      ┌──────────┐        ┌──────────────┐
+    │ MongoDB  │      │  Redis   │        │  RabbitMQ    │
+    │ Server   │      │  Server  │        │  Broker      │
+    └──────────┘      └──────────┘        └──────────────┘
+```
+
+### Request Flow
+
+```
+  Upload:   Client ──► Controller ──► UploadAudioUseCase ──► MongoDB + RabbitMQ
+                                                                      │
+  Worker:                              ProcessJobUseCase ◄─── Consumer ◄┘
+                                            │
+                                       MongoDB (update) + Redis (invalidate)
+
+  Status:   Client ──► Controller ──► GetAudioStatusUseCase
+                                            │
+                                      Redis hit? ──► return cached DTO
+                                      Redis miss? ──► MongoDB ──► cache ──► return
+```
+
 **Key patterns:**
 - Result/Either monad for error handling (no throw in domain/application)
 - Port & Adapter for all infrastructure (repositories, cache, queue publisher)
