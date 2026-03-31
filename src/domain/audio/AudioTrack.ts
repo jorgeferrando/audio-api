@@ -52,8 +52,10 @@ export class AudioTrack {
   readonly mimeType: string
   readonly sizeInBytes: number
   readonly createdAt: Date
-  private _status: AudioTrackStatus
-  private _durationSeconds?: number
+  // # = JavaScript native private fields — enforced at runtime, not just compile time.
+  // (TypeScript's `private` keyword is erased in the compiled JS output.)
+  #status: AudioTrackStatus
+  #durationSeconds?: number
 
   private constructor(props: AudioTrackProps) {
     this.id            = randomUUID()
@@ -61,15 +63,15 @@ export class AudioTrack {
     this.mimeType      = props.mimeType
     this.sizeInBytes   = props.sizeInBytes
     this.createdAt     = new Date()
-    this._status       = AudioTrackStatus.PENDING
+    this.#status       = AudioTrackStatus.PENDING
   }
 
   get status(): AudioTrackStatus {
-    return this._status
+    return this.#status
   }
 
   get durationSeconds(): number | undefined {
-    return this._durationSeconds
+    return this.#durationSeconds
   }
 
   static create(props: AudioTrackProps): Result<AudioTrack, ValidationError> {
@@ -93,36 +95,36 @@ export class AudioTrack {
   }
 
   markAsProcessing(): Result<void, AppError> {
-    if (this._status !== AudioTrackStatus.PENDING) {
+    if (this.#status !== AudioTrackStatus.PENDING) {
       return err(new AppError(
-        `cannot transition to PROCESSING from ${this._status}`,
+        `cannot transition to PROCESSING from ${this.#status}`,
         'INVALID_TRANSITION'
       ))
     }
-    this._status = AudioTrackStatus.PROCESSING
+    this.#status = AudioTrackStatus.PROCESSING
     return ok(undefined)
   }
 
   markAsReady(durationSeconds: number): Result<void, AppError> {
-    if (this._status !== AudioTrackStatus.PROCESSING) {
+    if (this.#status !== AudioTrackStatus.PROCESSING) {
       return err(new AppError(
         `cannot transition to READY: track must be in PROCESSING state`,
         'INVALID_TRANSITION'
       ))
     }
-    this._status          = AudioTrackStatus.READY
-    this._durationSeconds = durationSeconds
+    this.#status          = AudioTrackStatus.READY
+    this.#durationSeconds = durationSeconds
     return ok(undefined)
   }
 
   markAsFailed(): Result<void, AppError> {
-    if (this._status !== AudioTrackStatus.PROCESSING) {
+    if (this.#status !== AudioTrackStatus.PROCESSING) {
       return err(new AppError(
-        `cannot transition to FAILED from ${this._status}`,
+        `cannot transition to FAILED from ${this.#status}`,
         'INVALID_TRANSITION'
       ))
     }
-    this._status = AudioTrackStatus.FAILED
+    this.#status = AudioTrackStatus.FAILED
     return ok(undefined)
   }
 }
