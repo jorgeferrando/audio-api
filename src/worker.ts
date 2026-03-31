@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import dotenv from 'dotenv'
 import Redis from 'ioredis'
 import { WinstonLogger } from '@infrastructure/logger/WinstonLogger'
@@ -18,6 +20,9 @@ const RABBIT_URL = process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:567
 
 async function main(): Promise<void> {
   const logger = new WinstonLogger(process.env.NODE_ENV ?? 'development')
+
+  // ── Ensure upload directories exist ───────────────────────────────────
+  fs.mkdirSync(path.resolve(process.cwd(), 'uploads', 'processed'), { recursive: true })
 
   // ── Infrastructure ────────────────────────────────────────────────────
   await connectMongo(MONGO_URI, logger)
