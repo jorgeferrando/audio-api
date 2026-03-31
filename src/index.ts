@@ -48,7 +48,7 @@ async function main(): Promise<void> {
 
   // ── HTTP ──────────────────────────────────────────────────────────────
   const controller = new AudioController(uploadAudio, getAudioStatus, downloadAudio)
-  const app        = createApp(controller, logger)
+  const app        = createApp(controller, logger, process.env.API_KEY)
 
   const server = app.listen(PORT, () => {
     logger.info(`API server listening on port ${PORT}`)

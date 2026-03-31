@@ -275,6 +275,8 @@
 
   <script>
     const API = '/api/v1/audio'
+    const API_KEY = '{{API_KEY}}'
+    const authHeaders = API_KEY ? { 'x-api-key': API_KEY } : {}
     let selectedFile = null
     let pollTimer = null
 
@@ -400,7 +402,7 @@
       form.append('effect', $('effect').value)
 
       try {
-        const res = await fetch(API, { method: 'POST', body: form })
+        const res = await fetch(API, { method: 'POST', body: form, headers: authHeaders })
         const data = await res.json()
 
         if (!res.ok) {
@@ -427,7 +429,7 @@
 
       pollTimer = setInterval(async () => {
         try {
-          const res = await fetch(`${API}/${trackId}`)
+          const res = await fetch(`${API}/${trackId}`, { headers: authHeaders })
           const data = await res.json()
           renderStatus(data, trackId)
 
