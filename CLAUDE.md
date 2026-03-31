@@ -136,6 +136,19 @@ async save(audio: AudioTrack): Promise<Result<void, DatabaseError>> {
 - **Contract test helpers** (e.g. `loggerContract.ts`): co-located with the implementations they test, excluded from coverage and build.
 - `tsconfig.build.json` excludes `**/*.test.ts` and contract helpers — they never go to `dist/`.
 
+### Documentation
+This is a portfolio project — documenting decisions is as important as the code itself.
+
+- **ADR (Architecture Decision Records):** for global/architectural decisions. One file per decision in `docs/decisions/NNN-title.md`. Use the format: Status / Context / Decision / Consequences.
+  - Create a new ADR whenever introducing a significant pattern or making a non-obvious architectural choice.
+  - Existing ADRs: 001 Result pattern, 002 Clean Architecture, 003 Test colocation, 004 ILogger port.
+
+- **Code comments:** for local implementation decisions — why a specific data structure, why a design pattern was chosen for this class, trade-offs made. Use JSDoc-style block comments on classes/functions.
+  - Comment the *why*, not the *what*. If the code already says what it does, the comment should explain why it does it that way.
+  - Example: why `Set` instead of `Array`, why private constructor + static factory, why a state machine.
+
+- Do NOT add comments that just restate the code (e.g. `// returns the id` above `get id()`).
+
 ### Commits
 - Conventional commits. No Claude co-author. Jorge's commits only.
 

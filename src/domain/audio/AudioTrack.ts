@@ -9,6 +9,7 @@ export enum AudioTrackStatus {
   FAILED     = 'FAILED',
 }
 
+// Set gives O(1) lookup vs O(n) for Array.includes — worth it for a hot validation path.
 const VALID_MIME_TYPES = new Set([
   'audio/mpeg',
   'audio/wav',
@@ -26,6 +27,25 @@ interface AudioTrackProps {
   sizeInBytes: number
 }
 
+/**
+ * AudioTrack — core domain entity.
+ *
+ * Design decisions:
+ *
+ * 1. Private constructor + static `create()` factory.
+ *    A constructor cannot return Result<T, E>, so validation would have to throw.
+ *    The factory method returns Result and keeps the constructor unreachable from outside,
+ *    guaranteeing that every AudioTrack instance is valid by construction.
+ *
+ * 2. Immutable identity + mutable state via private fields.
+ *    id, filename, mimeType, sizeInBytes and createdAt never change after creation (readonly).
+ *    _status and _durationSeconds change only through explicit transition methods that
+ *    validate the state machine — direct assignment from outside is impossible.
+ *
+ * 3. State machine: PENDING → PROCESSING → READY | FAILED
+ *    Each transition method returns Result<void, AppError> instead of throwing,
+ *    consistent with the project-wide error handling strategy (see ADR 001).
+ */
 export class AudioTrack {
   readonly id: string
   readonly filename: string
