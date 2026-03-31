@@ -136,6 +136,11 @@ async save(audio: AudioTrack): Promise<Result<void, DatabaseError>> {
 - **Contract test helpers** (e.g. `loggerContract.ts`): co-located with the implementations they test, excluded from coverage and build.
 - `tsconfig.build.json` excludes `**/*.test.ts` and contract helpers — they never go to `dist/`.
 
+### TypeScript conventions
+- Use `#field` (native JavaScript private fields) for truly private state in domain entities — enforced at runtime, not just compile time. TypeScript's `private` keyword is erased in the compiled output.
+- Use `readonly` for identity and immutable properties.
+- Use `private constructor` + `static create()` factory on domain entities so validation returns `Result` instead of throwing.
+
 ### Documentation
 This is a portfolio project — documenting decisions is as important as the code itself.
 
