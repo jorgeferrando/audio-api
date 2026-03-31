@@ -1,3 +1,4 @@
+import path from 'path'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -18,9 +19,21 @@ export function createApp(controller: AudioController, logger: ILogger): express
   const app = express()
 
   // ── Security & parsing ──────────────────────────────────────────────────
-  app.use(helmet())
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        mediaSrc: ["'self'", "blob:"],
+      },
+    },
+  }))
   app.use(cors())
   app.use(express.json())
+
+  // ── Static UI ────────────────────────────────────────────────────────────
+  app.use(express.static(path.resolve(process.cwd(), 'src', 'presentation', 'public')))
 
   // ── Routes ──────────────────────────────────────────────────────────────
   app.use('/api/v1/health', healthRoutes())
