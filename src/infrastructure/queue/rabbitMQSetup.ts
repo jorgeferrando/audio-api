@@ -1,9 +1,9 @@
-import amqplib, { type Connection, type Channel } from 'amqplib'
+import amqplib, { type Channel } from 'amqplib'
 import type { ILogger } from '@shared/ILogger'
 import { EXCHANGE, QUEUES } from './queues'
 
 export interface RabbitMQConnection {
-  connection: Connection
+  connection: Awaited<ReturnType<typeof amqplib.connect>>
   channel: Channel
 }
 

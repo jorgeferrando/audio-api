@@ -1,7 +1,7 @@
-import { Schema, model, type Document } from 'mongoose'
+import { Schema, model } from 'mongoose'
 import { JobStatus, AudioEffect } from '@domain/job/ProcessingJob'
 
-export interface ProcessingJobDocument extends Document {
+export interface ProcessingJobDocument {
   _id: string
   audioTrackId: string
   effect: AudioEffect

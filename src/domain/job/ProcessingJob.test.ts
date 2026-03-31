@@ -2,6 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { ProcessingJob, JobStatus, AudioEffect, type ProcessingJobPersistence } from './ProcessingJob'
 import { ValidationError } from '@shared/AppError'
 
+function createJob(props = { audioTrackId: 'track-uuid-123', effect: AudioEffect.NORMALIZE }): ProcessingJob {
+  const result = ProcessingJob.create(props)
+  if (!result.isOk()) throw new Error('test setup failed')
+  return result.value
+}
+
 describe('ProcessingJob', () => {
   const validProps = {
     audioTrackId: 'track-uuid-123',
@@ -56,7 +62,7 @@ describe('ProcessingJob', () => {
 
   describe('start()', () => {
     it('transitions from PENDING to PROCESSING', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
 
       const result = job.start()
 
@@ -65,7 +71,7 @@ describe('ProcessingJob', () => {
     })
 
     it('sets startedAt when transitioning to PROCESSING', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
 
       expect(job.startedAt).toBeUndefined()
       job.start()
@@ -73,7 +79,7 @@ describe('ProcessingJob', () => {
     })
 
     it('fails if already in PROCESSING state', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
 
       const result = job.start()
@@ -84,7 +90,7 @@ describe('ProcessingJob', () => {
     })
 
     it('fails if job is COMPLETED', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
       job.complete()
 
@@ -94,7 +100,7 @@ describe('ProcessingJob', () => {
     })
 
     it('fails if job is FAILED', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
       job.fail('something went wrong')
 
@@ -108,7 +114,7 @@ describe('ProcessingJob', () => {
 
   describe('complete()', () => {
     it('transitions from PROCESSING to COMPLETED', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
 
       const result = job.complete()
@@ -118,7 +124,7 @@ describe('ProcessingJob', () => {
     })
 
     it('sets completedAt when transitioning to COMPLETED', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
 
       expect(job.completedAt).toBeUndefined()
@@ -127,7 +133,7 @@ describe('ProcessingJob', () => {
     })
 
     it('fails if job is still PENDING', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
 
       const result = job.complete()
 
@@ -141,7 +147,7 @@ describe('ProcessingJob', () => {
 
   describe('fail()', () => {
     it('transitions from PROCESSING to FAILED', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
 
       const result = job.fail('codec not supported')
@@ -151,7 +157,7 @@ describe('ProcessingJob', () => {
     })
 
     it('stores the error message', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
       job.fail('codec not supported')
 
@@ -159,7 +165,7 @@ describe('ProcessingJob', () => {
     })
 
     it('sets completedAt when transitioning to FAILED', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
       job.start()
 
       expect(job.completedAt).toBeUndefined()
@@ -168,7 +174,7 @@ describe('ProcessingJob', () => {
     })
 
     it('fails if job is still PENDING', () => {
-      const job = ProcessingJob.create(validProps).value as ProcessingJob
+      const job = createJob()
 
       const result = job.fail('something')
 

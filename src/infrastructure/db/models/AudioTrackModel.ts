@@ -1,17 +1,16 @@
-import { Schema, model, type Document } from 'mongoose'
+import { Schema, model } from 'mongoose'
 import { AudioTrackStatus } from '@domain/audio/AudioTrack'
 
 /**
  * Mongoose persistence model for AudioTrack.
  *
- * Deliberately separate from the domain entity — the schema owns persistence
- * concerns (indexes, MongoDB types), while the entity owns business rules.
- * The repository is responsible for mapping between the two.
+ * Plain interface (not extending Document) because we always use `.lean()`
+ * in queries, which returns POJOs. No need for Mongoose instance methods.
  *
  * We store domain id in `_id` (as a string) to avoid a separate `id` field
  * and keep MongoDB's native index on `_id`.
  */
-export interface AudioTrackDocument extends Document {
+export interface AudioTrackDocument {
   _id: string
   filename: string
   mimeType: string
