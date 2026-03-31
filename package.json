@@ -1,0 +1,53 @@
+{
+  "name": "audio-api",
+  "version": "1.0.0",
+  "description": "Audio Processing Microservices API - Portfolio project for Voicemod application",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write .",
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=integration"
+  },
+  "keywords": ["audio", "microservices", "nodejs", "express", "mongodb", "redis", "rabbitmq"],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "mongoose": "^8.7.0",
+    "ioredis": "^5.4.1",
+    "amqplib": "^0.10.4",
+    "zod": "^3.23.8",
+    "winston": "^3.14.2",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
+    "helmet": "^8.0.0",
+    "express-rate-limit": "^7.4.0",
+    "uuid": "^10.0.0",
+    "http-status-codes": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/amqplib": "^0.10.5",
+    "@types/cors": "^2.8.17",
+    "@types/uuid": "^10.0.0",
+    "@types/node": "^22.7.5",
+    "@types/jest": "^29.5.13",
+    "@types/supertest": "^6.0.2",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "supertest": "^7.0.0",
+    "eslint": "^9.11.1",
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "@typescript-eslint/parser": "^8.8.0",
+    "prettier": "^3.3.3"
+  }
+}
