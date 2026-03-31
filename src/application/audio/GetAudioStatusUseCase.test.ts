@@ -4,6 +4,7 @@ import { AudioTrack } from '@domain/audio/AudioTrack'
 import { ProcessingJob, AudioEffect } from '@domain/job/ProcessingJob'
 import type { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
 import type { IProcessingJobRepository } from '@domain/job/IProcessingJobRepository'
+import type { ICacheService } from '@shared/ICacheService'
 import { ok, err } from '@shared/Result'
 import { DatabaseError } from '@shared/AppError'
 
@@ -38,83 +39,139 @@ const makeJobRepo = (): IProcessingJobRepository => ({
   findByAudioTrackId: vi.fn(),
 })
 
+const makeCache = (): ICacheService => ({
+  get: vi.fn().mockResolvedValue(null), // cache miss by default
+  set: vi.fn().mockResolvedValue(undefined),
+  del: vi.fn().mockResolvedValue(undefined),
+})
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('GetAudioStatusUseCase', () => {
   let audioRepo: IAudioTrackRepository
   let jobRepo: IProcessingJobRepository
+  let cache: ICacheService
   let useCase: GetAudioStatusUseCase
 
   beforeEach(() => {
     audioRepo = makeAudioRepo()
     jobRepo   = makeJobRepo()
-    useCase   = new GetAudioStatusUseCase(audioRepo, jobRepo)
+    cache     = makeCache()
+    useCase   = new GetAudioStatusUseCase(audioRepo, jobRepo, cache)
   })
 
-  it('returns audio and job when both exist', async () => {
-    const audio = makeAudioTrack()
-    const job   = makeJob(audio.id)
+  describe('cache hit', () => {
+    it('returns cached DTO without hitting the database', async () => {
+      const cachedDto = { audioTrackId: 'abc', filename: 'song.mp3' }
+      vi.mocked(cache.get).mockResolvedValue(cachedDto)
 
-    vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
-    vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(ok(job))
+      const result = await useCase.execute({ audioTrackId: 'abc' })
 
-    const result = await useCase.execute({ audioTrackId: audio.id })
-
-    expect(result.isOk()).toBe(true)
-    if (!result.isOk()) return
-    expect(result.value.audio).toBe(audio)
-    expect(result.value.job).toBe(job)
+      expect(result.isOk()).toBe(true)
+      if (!result.isOk()) return
+      expect(result.value).toBe(cachedDto)
+      expect(audioRepo.findById).not.toHaveBeenCalled()
+    })
   })
 
-  it('returns audio with null job when job does not exist yet', async () => {
-    const audio = makeAudioTrack()
+  describe('cache miss', () => {
+    it('returns a DTO with audio and job data', async () => {
+      const audio = makeAudioTrack()
+      const job   = makeJob(audio.id)
 
-    vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
-    vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(ok(null))
+      vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
+      vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(ok(job))
 
-    const result = await useCase.execute({ audioTrackId: audio.id })
+      const result = await useCase.execute({ audioTrackId: audio.id })
 
-    expect(result.isOk()).toBe(true)
-    if (!result.isOk()) return
-    expect(result.value.audio).toBe(audio)
-    expect(result.value.job).toBeNull()
-  })
+      expect(result.isOk()).toBe(true)
+      if (!result.isOk()) return
+      expect(result.value.audioTrackId).toBe(audio.id)
+      expect(result.value.filename).toBe('song.mp3')
+      expect(result.value.job).not.toBeNull()
+      expect(result.value.job!.effect).toBe(AudioEffect.NORMALIZE)
+    })
 
-  it('returns NotFoundError when audio track does not exist', async () => {
-    vi.mocked(audioRepo.findById).mockResolvedValue(ok(null))
+    it('returns a DTO with null job when no job exists yet', async () => {
+      const audio = makeAudioTrack()
 
-    const result = await useCase.execute({ audioTrackId: 'unknown-id' })
+      vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
+      vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(ok(null))
 
-    expect(result.isErr()).toBe(true)
-    if (!result.isErr()) return
-    expect(result.error.code).toBe('NOT_FOUND')
-  })
+      const result = await useCase.execute({ audioTrackId: audio.id })
 
-  it('returns DatabaseError if audio repo fails', async () => {
-    vi.mocked(audioRepo.findById).mockResolvedValue(
-      err(new DatabaseError('timeout'))
-    )
+      expect(result.isOk()).toBe(true)
+      if (!result.isOk()) return
+      expect(result.value.job).toBeNull()
+    })
 
-    const result = await useCase.execute({ audioTrackId: 'some-id' })
+    it('caches the result after a DB hit', async () => {
+      const audio = makeAudioTrack()
+      vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
+      vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(ok(null))
 
-    expect(result.isErr()).toBe(true)
-    if (!result.isErr()) return
-    expect(result.error.code).toBe('DATABASE_ERROR')
-    expect(jobRepo.findByAudioTrackId).not.toHaveBeenCalled()
-  })
+      await useCase.execute({ audioTrackId: audio.id })
 
-  it('returns DatabaseError if job repo fails', async () => {
-    const audio = makeAudioTrack()
+      expect(cache.set).toHaveBeenCalledOnce()
+    })
 
-    vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
-    vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(
-      err(new DatabaseError('timeout'))
-    )
+    it('uses a longer TTL for terminal states (READY)', async () => {
+      const audio = makeAudioTrack()
+      audio.markAsProcessing()
+      audio.markAsReady(120)
 
-    const result = await useCase.execute({ audioTrackId: audio.id })
+      vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
+      vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(ok(null))
 
-    expect(result.isErr()).toBe(true)
-    if (!result.isErr()) return
-    expect(result.error.code).toBe('DATABASE_ERROR')
+      await useCase.execute({ audioTrackId: audio.id })
+
+      const [, , ttl] = vi.mocked(cache.set).mock.calls[0]
+      expect(ttl).toBe(5 * 60)
+    })
+
+    it('uses a short TTL for in-flight states (PENDING)', async () => {
+      const audio = makeAudioTrack() // starts PENDING
+
+      vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
+      vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(ok(null))
+
+      await useCase.execute({ audioTrackId: audio.id })
+
+      const [, , ttl] = vi.mocked(cache.set).mock.calls[0]
+      expect(ttl).toBe(5)
+    })
+
+    it('returns NotFoundError when audio track does not exist', async () => {
+      vi.mocked(audioRepo.findById).mockResolvedValue(ok(null))
+
+      const result = await useCase.execute({ audioTrackId: 'unknown-id' })
+
+      expect(result.isErr()).toBe(true)
+      if (!result.isErr()) return
+      expect(result.error.code).toBe('NOT_FOUND')
+    })
+
+    it('returns DatabaseError if audio repo fails', async () => {
+      vi.mocked(audioRepo.findById).mockResolvedValue(err(new DatabaseError('timeout')))
+
+      const result = await useCase.execute({ audioTrackId: 'some-id' })
+
+      expect(result.isErr()).toBe(true)
+      if (!result.isErr()) return
+      expect(result.error.code).toBe('DATABASE_ERROR')
+      expect(jobRepo.findByAudioTrackId).not.toHaveBeenCalled()
+    })
+
+    it('returns DatabaseError if job repo fails', async () => {
+      const audio = makeAudioTrack()
+      vi.mocked(audioRepo.findById).mockResolvedValue(ok(audio))
+      vi.mocked(jobRepo.findByAudioTrackId).mockResolvedValue(err(new DatabaseError('timeout')))
+
+      const result = await useCase.execute({ audioTrackId: audio.id })
+
+      expect(result.isErr()).toBe(true)
+      if (!result.isErr()) return
+      expect(result.error.code).toBe('DATABASE_ERROR')
+    })
   })
 })
