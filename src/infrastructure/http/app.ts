@@ -43,13 +43,13 @@ export function createApp(
 
   // ── Static UI ────────────────────────────────────────────────────────────
   const publicDir = path.resolve(process.cwd(), 'src', 'presentation', 'public')
-  const indexHtml = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf-8')
-  const indexWithKey = indexHtml.replace('{{API_KEY}}', apiKey ?? '')
+  const indexPath = path.join(publicDir, 'index.html')
 
   app.get('/', (_req, res) => {
-    res.type('html').send(indexWithKey)
+    const html = fs.readFileSync(indexPath, 'utf-8')
+    res.type('html').send(html.replace('{{API_KEY}}', apiKey ?? ''))
   })
-  app.use(express.static(publicDir))
+  app.use(express.static(publicDir, { etag: false, lastModified: false }))
 
   // ── Routes ──────────────────────────────────────────────────────────────
   const v1 = Router()
