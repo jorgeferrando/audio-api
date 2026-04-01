@@ -4,8 +4,11 @@ import { initAllPlayers } from './player.js'
 import { startPolling, renderStatus } from './tracker.js'
 import { refreshTrackList } from './trackList.js'
 import { show, hide } from './dom.js'
+import { showToast } from './toast.js'
 
 let selectedFile = null
+let cancelPolling = null
+
 const uploadBtn = document.getElementById('uploadBtn')
 const uploadErr = document.getElementById('uploadError')
 const resultCard = document.getElementById('result')
@@ -32,6 +35,9 @@ initAllPlayers()
 uploadBtn.addEventListener('click', async () => {
   if (!selectedFile) return
 
+  // Cancel previous polling if any
+  cancelPolling?.()
+
   uploadBtn.disabled = true
   uploadBtn.textContent = 'Uploading...'
   uploadErr.textContent = ''
@@ -44,16 +50,18 @@ uploadBtn.addEventListener('click', async () => {
     uploadBtn.textContent = 'Upload & Process'
     show(resultCard)
 
-    startPolling(audioTrackId, {
+    cancelPolling = startPolling(audioTrackId, {
       onUpdate: renderStatus,
       onReady: () => {
         uploadBtn.disabled = false
         refreshTrackList()
       },
-      onFailed: () => { uploadBtn.disabled = false },
+      onFailed: () => {
+        uploadBtn.disabled = false
+      },
     })
   } catch (e) {
-    uploadErr.textContent = e.message || 'Upload failed'
+    showToast(e.message ?? 'Upload failed')
     uploadBtn.disabled = false
     uploadBtn.textContent = 'Upload & Process'
   }

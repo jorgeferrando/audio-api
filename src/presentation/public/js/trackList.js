@@ -1,4 +1,5 @@
 import { listTracks, deleteTrack, deleteManyTracks, downloadUrl } from './api.js'
+import { showToast } from './toast.js'
 
 const container = document.getElementById('trackList')
 const listSection = document.getElementById('trackListSection')
@@ -11,14 +12,15 @@ let currentOffset = 0
 
 export async function refreshTrackList() {
   try {
-    const data = await listTracks({ limit: PAGE_SIZE, offset: currentOffset })
-    currentTracks = data.items
-    total = data.total
+    const { items, total: totalCount } = await listTracks({ limit: PAGE_SIZE, offset: currentOffset })
+    currentTracks = items
+    total = totalCount
     selected.clear()
     render()
     if (total > 0) listSection.classList.remove('hidden')
     else listSection.classList.add('hidden')
-  } catch {
+  } catch (e) {
+    showToast(e.message ?? 'Failed to load tracks')
     listSection.classList.add('hidden')
   }
 }
@@ -88,7 +90,11 @@ function bindEvents() {
   container.querySelector('.delete-selected')?.addEventListener('click', async () => {
     const ids = [...selected]
     animateRemoval(ids)
-    await deleteManyTracks(ids)
+    try {
+      await deleteManyTracks(ids)
+    } catch (e) {
+      showToast(e.message ?? 'Delete failed')
+    }
     await refreshTrackList()
   })
 

@@ -582,3 +582,40 @@ audio {
   font-size: var(--text-xs);
   color: var(--muted);
 }
+
+/* ── Toast ──────────────────────────────────────── */
+
+.toast-container {
+  position: fixed;
+  inset-block-end: var(--space-lg);
+  inset-inline-end: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  z-index: 1000;
+}
+
+.toast {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: white;
+  opacity: 0;
+  transform: translateX(100%);
+  transition: opacity 0.3s, transform 0.3s;
+  max-inline-size: 320px;
+
+  &.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  &.toast-error {
+    background: var(--error);
+  }
+
+  &.toast-success {
+    background: var(--success);
+  }
+}
