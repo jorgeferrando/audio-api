@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -5,6 +6,7 @@ import { z } from 'zod'
 import { StatusCodes } from 'http-status-codes'
 import { ValidationError } from '@shared/AppError'
 import { AudioEffect } from '@domain/job/ProcessingJob'
+import { validateAudioContent } from '@infrastructure/audio/validateAudio'
 import type { IFileStorage } from '@application/storage/IFileStorage'
 import type { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import type { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
@@ -30,14 +32,27 @@ export class AudioController {
 
     const parsed = effectSchema.safeParse(req.body)
     if (!parsed.success) {
+      this.cleanupTempFile(req.file.path)
       next(new ValidationError(parsed.error.issues[0].message))
       return
     }
 
+    // Validate real audio content via ffprobe (prevents spoofed MIME types)
+    const isRealAudio = await validateAudioContent(req.file.path)
+    if (!isRealAudio) {
+      this.cleanupTempFile(req.file.path)
+      next(new ValidationError('file does not contain valid audio data'))
+      return
+    }
+
+    // Stream from temp file to MinIO (no full buffer in RAM)
     const ext = path.extname(req.file.originalname)
     const storageKey = `originals/${randomUUID()}${ext}`
+    const stream = fs.createReadStream(req.file.path)
 
-    const uploadResult = await this.fileStorage.upload(storageKey, req.file.buffer, req.file.mimetype)
+    const uploadResult = await this.fileStorage.upload(storageKey, stream, req.file.mimetype, req.file.size)
+    this.cleanupTempFile(req.file.path)
+
     if (uploadResult.isErr()) {
       next(uploadResult.error)
       return
@@ -93,5 +108,9 @@ export class AudioController {
     res.setHeader('Content-Disposition', `attachment; filename="processed_${filename}"`)
     res.setHeader('Content-Type', mimeType)
     streamResult.value.pipe(res)
+  }
+
+  private cleanupTempFile(filePath: string): void {
+    fs.unlink(filePath, () => {}) // fire-and-forget, non-blocking
   }
 }

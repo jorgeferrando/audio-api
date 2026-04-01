@@ -1,5 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Readable } from 'stream'
+
+vi.mock('@infrastructure/audio/validateAudio', () => ({
+  validateAudioContent: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return {
+    ...actual,
+    default: {
+      ...actual,
+      createReadStream: vi.fn().mockReturnValue(Readable.from(Buffer.from('audio'))),
+      unlinkSync: vi.fn(),
+    },
+  }
+})
+
 import { AudioController } from './AudioController'
 import { AudioEffect } from '@domain/job/ProcessingJob'
 import { AudioTrackStatus } from '@domain/audio/AudioTrack'
@@ -78,7 +95,7 @@ describe('AudioController', () => {
   describe('upload()', () => {
     const validFile = {
       originalname: 'song.mp3', mimetype: 'audio/mpeg',
-      size: 1024, buffer: Buffer.from('audio-data'),
+      size: 1024, path: '/tmp/upload-abc.mp3',
     }
 
     it('uploads file to storage then returns 202', async () => {
