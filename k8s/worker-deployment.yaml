@@ -20,8 +20,8 @@ spec:
     spec:
       containers:
         - name: worker
-          image: audio-api:latest
-          command: ["node", "dist/worker.js"]
+          image: ghcr.io/jorgeferrando/audio-api:latest
+          command: ["npx", "tsx", "src/worker.ts"]
           envFrom:
             - configMapRef:
                 name: audio-api-config

@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: audio-api:latest
+          image: ghcr.io/jorgeferrando/audio-api:latest
           ports:
             - containerPort: 3000
           envFrom:
