@@ -11,9 +11,10 @@ export async function refreshTrackList() {
     currentTracks = await listTracks()
     selected.clear()
     render()
-    listSection.style.display = currentTracks.length ? 'block' : 'none'
+    if (currentTracks.length) listSection.classList.remove('hidden')
+    else listSection.classList.add('hidden')
   } catch {
-    listSection.style.display = 'none'
+    listSection.classList.add('hidden')
   }
 }
 

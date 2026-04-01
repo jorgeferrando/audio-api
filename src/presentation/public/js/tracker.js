@@ -1,5 +1,6 @@
 import { getStatus, downloadUrl } from './api.js'
 import { STATUS, POLL_INTERVAL_MS } from './constants.js'
+import { show, hide } from './dom.js'
 
 export function startPolling(trackId, { onUpdate, onReady, onFailed }) {
   onUpdate({ status: STATUS.PENDING, job: { status: STATUS.PENDING } }, trackId)
@@ -46,12 +47,12 @@ export function renderStatus(data, trackId) {
   if (data.status === STATUS.READY) {
     const url = downloadUrl(trackId)
     dl.href = url
-    dl.style.display = 'block'
+    show(dl)
     processedPlayer.src = url
-    processedSection.style.display = 'block'
+    show(processedSection)
   } else {
-    dl.style.display = 'none'
-    processedSection.style.display = 'none'
+    hide(dl)
+    hide(processedSection)
   }
 }
 
@@ -59,7 +60,7 @@ function badge(status) {
   const cls = 'badge ' + status.toLowerCase()
   const icon = (status === STATUS.PENDING || status === STATUS.PROCESSING)
     ? '<span class="spinner"></span>' : ''
-  return `<span class="badge ${cls}">${icon}${status}</span>`
+  return `<span class="${cls}">${icon}${status}</span>`
 }
 
 function truncate(str) {

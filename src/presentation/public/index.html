@@ -25,12 +25,12 @@
       <input type="file" id="fileInput" accept="audio/*" hidden>
       <span class="demo-link" id="demoLink">or use a demo tone (3s sine wave)</span>
 
-      <div class="audio-section" id="originalSection" style="display:none">
+      <div class="audio-section hidden" id="originalSection">
         <div class="label">Original</div>
         <audio id="originalPlayer"></audio>
         <div class="player" data-for="originalPlayer">
           <button class="play-btn" type="button" aria-label="Play">
-            <svg viewBox="0 0 16 16"><polygon class="icon-play" points="4,2 14,8 4,14"/><g class="icon-pause" style="display:none"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></g></svg>
+            <svg viewBox="0 0 16 16"><polygon class="icon-play" points="4,2 14,8 4,14"/><g class="icon-pause hidden"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></g></svg>
           </button>
           <div class="track">
             <div class="bar-wrap"><div class="bar"></div></div>
@@ -55,16 +55,16 @@
     </div>
 
     <!-- Result -->
-    <div class="card" id="result" style="display:none">
+    <div class="card hidden" id="result">
       <h2>Result</h2>
       <div id="statusRows"></div>
 
-      <div class="audio-section" id="processedSection" style="display:none">
+      <div class="audio-section hidden" id="processedSection">
         <div class="label">Processed</div>
         <audio id="processedPlayer"></audio>
         <div class="player" data-for="processedPlayer">
           <button class="play-btn" type="button" aria-label="Play">
-            <svg viewBox="0 0 16 16"><polygon class="icon-play" points="4,2 14,8 4,14"/><g class="icon-pause" style="display:none"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></g></svg>
+            <svg viewBox="0 0 16 16"><polygon class="icon-play" points="4,2 14,8 4,14"/><g class="icon-pause hidden"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></g></svg>
           </button>
           <div class="track">
             <div class="bar-wrap"><div class="bar"></div></div>
@@ -73,11 +73,11 @@
         </div>
       </div>
 
-      <a class="download-btn" id="downloadLink" style="display:none">Download Processed Audio</a>
+      <a class="download-btn hidden" id="downloadLink">Download Processed Audio</a>
     </div>
 
     <!-- Track list -->
-    <div class="card" id="trackListSection" style="display:none">
+    <div class="card hidden" id="trackListSection">
       <h2>Tracks</h2>
       <div id="trackList"></div>
     </div>

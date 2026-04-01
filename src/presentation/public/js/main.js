@@ -3,6 +3,7 @@ import { initUploader, initDemoTone } from './uploader.js'
 import { initAllPlayers } from './player.js'
 import { startPolling, renderStatus } from './tracker.js'
 import { refreshTrackList } from './trackList.js'
+import { show, hide } from './dom.js'
 
 let selectedFile = null
 const uploadBtn = document.getElementById('uploadBtn')
@@ -19,7 +20,7 @@ function onFileSelected(file) {
   uploadErr.textContent = ''
 
   originalPlayer.src = URL.createObjectURL(file)
-  originalSection.style.display = 'block'
+  show(originalSection)
 }
 
 const { selectFile } = initUploader({ onFileSelected })
@@ -34,14 +35,14 @@ uploadBtn.addEventListener('click', async () => {
   uploadBtn.disabled = true
   uploadBtn.textContent = 'Uploading...'
   uploadErr.textContent = ''
-  resultCard.style.display = 'none'
+  hide(resultCard)
 
   try {
     const effect = document.getElementById('effect').value
     const { audioTrackId } = await uploadAudio(selectedFile, effect)
 
     uploadBtn.textContent = 'Upload & Process'
-    resultCard.style.display = 'block'
+    show(resultCard)
 
     startPolling(audioTrackId, {
       onUpdate: renderStatus,

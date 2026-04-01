@@ -1,3 +1,5 @@
+import { show, hide } from './dom.js'
+
 function fmtTime(s) {
   if (!s || !isFinite(s)) return '0:00'
   const m = Math.floor(s / 60)
@@ -29,14 +31,14 @@ export function initPlayer(playerEl) {
   })
 
   audio.addEventListener('play', () => {
-    iconPlay.style.display = 'none'
-    iconPause.style.display = 'inline'
+    hide(iconPlay)
+    show(iconPause)
     animFrame = requestAnimationFrame(updateProgress)
   })
 
   audio.addEventListener('pause', () => {
-    iconPlay.style.display = 'inline'
-    iconPause.style.display = 'none'
+    show(iconPlay)
+    hide(iconPause)
     if (animFrame) cancelAnimationFrame(animFrame)
   })
 
@@ -45,8 +47,8 @@ export function initPlayer(playerEl) {
   })
 
   audio.addEventListener('ended', () => {
-    iconPlay.style.display = 'inline'
-    iconPause.style.display = 'none'
+    show(iconPlay)
+    hide(iconPause)
     if (animFrame) cancelAnimationFrame(animFrame)
     bar.style.width = '0%'
   })
