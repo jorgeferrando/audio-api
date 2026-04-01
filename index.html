@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Processing API — Project Documentation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="#">audio-api</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#evolution">Evolution</a>
+  <a href="#challenges">Challenges</a>
+  <a href="#decisions">Decisions</a>
+  <a href="#stack">Stack</a>
+  <a href="https://github.com/jorgeferrando/audio-api" target="_blank">GitHub</a>
+</nav>
+
+<div class="container">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Audio Processing API</h1>
+    <p>
+      A portfolio project demonstrating backend engineering with Node.js, Clean Architecture,
+      TDD, and the exact stack used at Voicemod: Express + MongoDB + Redis + RabbitMQ.
+      Upload an audio file, apply an effect, download the processed result.
+    </p>
+    <div class="stats">
+      <div class="stat"><div class="number">176+</div><div class="label">Tests</div></div>
+      <div class="stat"><div class="number">91%</div><div class="label">Branch Coverage</div></div>
+      <div class="stat"><div class="number">11</div><div class="label">ADRs</div></div>
+      <div class="stat"><div class="number">7</div><div class="label">Docker Services</div></div>
+      <div class="stat"><div class="number">114</div><div class="label">Commits</div></div>
+    </div>
+  </div>
+
+  <!-- Architecture -->
+  <section id="architecture">
+    <h2>Architecture</h2>
+    <p>
+      Clean Architecture with four layers. Dependencies flow inward: presentation depends on
+      application, application depends on domain, and infrastructure implements ports defined
+      by domain and application. The composition root (<code>index.ts</code>) is the only
+      file that knows all layers.
+    </p>
+
+    <div class="card">
+      <pre><code>presentation/     Controllers, routes, middlewares (auth, validation, error handling)
+application/      Use cases, DTOs, application ports (IFileStorage, IJobPublisher)
+domain/           Entities (AudioTrack, ProcessingJob), repository ports
+infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, nginx, Winston</code></pre>
+    </div>
+
+    <h3>Request Flow</h3>
+    <div class="card">
+      <pre><code>Upload:   Client ──► nginx ──► multer ──► ffprobe (validate) ──► MinIO (stream) ──► MongoDB + RabbitMQ
+Worker:   RabbitMQ ──► Consumer ──► MinIO (download) ──► ffmpeg ──► MinIO (upload) ──► MongoDB + Redis
+Status:   Client ──► nginx ──► Redis (cache hit?) or MongoDB ──► cache ──► DTO
+Download: Client ──► nginx ──► MinIO stream</code></pre>
+    </div>
+
+    <h3>Key Patterns</h3>
+    <div class="card-grid">
+      <div class="card">
+        <h3>Result/Either Monad</h3>
+        <p>No <code>throw</code> in domain or application layers. Every operation returns
+        <code>Result&lt;T, E&gt;</code> — the caller explicitly handles success and error paths.
+        Early-return pattern keeps the happy path readable.</p>
+      </div>
+      <div class="card">
+        <h3>Port & Adapter</h3>
+        <p>Every infrastructure dependency (MongoDB, Redis, RabbitMQ, MinIO, ffmpeg) is behind
+        an interface. The domain never imports infrastructure. Swapping MinIO for GCS is a
+        single-file change.</p>
+      </div>
+      <div class="card">
+        <h3>Saga Compensation</h3>
+        <p>When a multi-entity operation fails mid-processing, compensation logic reconstitutes
+        entities in their last persisted state and marks them as FAILED. No distributed
+        transactions needed.</p>
+      </div>
+      <div class="card">
+        <h3>Graceful Drain</h3>
+        <p>On SIGTERM, the worker stops accepting new messages (<code>channel.cancel()</code>)
+        and waits for the in-flight job to finish before closing connections. Zero lost work
+        during K8s rolling updates.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Evolution -->
+  <section id="evolution">
+    <h2>Project Evolution</h2>
+    <p>
+      The project went through 7 rounds of technical review. Each round identified defects,
+      and each defect was addressed in the next iteration. This timeline shows how the project
+      evolved from a basic CRUD to a production-grade system.
+    </p>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="phase">Phase 1 — Foundation</div>
+        <h3>Domain Entities + TDD</h3>
+        <p>AudioTrack and ProcessingJob with state machines, Result/Either pattern,
+        native <code>#</code> private fields, static <code>create()</code> factories.
+        37 tests. Co-located test files.</p>
+      </div>
+
+      <div class="timeline-item">
+        <div class="phase">Phase 2 — Infrastructure</div>
+        <h3>MongoDB, Redis, RabbitMQ</h3>
+        <p>Repository implementations with Mongoose, RedisCacheService with TTL strategy,
+        RabbitMQ publisher/consumer with DLQ. Integration tests with mongodb-memory-server.
+        Grew to 109 tests.</p>
+      </div>
+
+      <div class="timeline-item">
+        <div class="phase">Phase 3 — HTTP Layer</div>
+        <h3>Express + Zod + Supertest</h3>
+        <p>AudioController with Zod validation, error handler mapping AppError codes to HTTP
+        status, health endpoint. HTTP integration tests with Supertest. 129 tests.</p>
+      </div>
+
+      <div class="timeline-item">
+        <div class="phase">Phase 4 — Real Audio</div>
+        <h3>File Upload + ffmpeg Processing</h3>
+        <p>Multer for multipart uploads, ffmpeg for real audio effects (reverb, echo, pitch shift),
+        download endpoint. Docker Compose with 5 services. Full flow tested end-to-end.</p>
+      </div>
+
+      <div class="timeline-item">
+        <div class="phase">Phase 5 — Review Round 1</div>
+        <h3>External Review: 10 Defects Found</h3>
+        <p>Critical: local file storage incompatible with K8s multi-replica. Important: "Microservices"
+        naming incorrect, API key without scoping. All addressed: MinIO migration, naming fix,
+        API key auth, graceful shutdown, rate limiting.</p>
+      </div>
+
+      <div class="timeline-item">
+        <div class="phase">Phase 6 — MinIO + K8s</div>
+        <h3>Object Storage + Kubernetes Deployment</h3>
+        <p>Migrated from local disk to MinIO (S3-compatible). IFileStorage port enables GCS migration.
+        K8s manifests with separate API/worker Deployments, tested with Docker Desktop K8s.
+        One-button deploy and test scripts.</p>
+      </div>
+
+      <div class="timeline-item">
+        <div class="phase">Phase 7 — Hardening</div>
+        <h3>nginx, CSP, Streaming, Validation</h3>
+        <p>nginx reverse proxy (Express API-only), CSP compliance (no inline styles/scripts),
+        streaming upload to MinIO, ffprobe content validation, readiness probe with dependency checks,
+        frontend modernization (ES modules, AbortController, oklch, CSS nesting).
+        176 tests, 11 ADRs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Challenges -->
+  <section id="challenges">
+    <h2>Challenges Overcome</h2>
+
+    <div class="card-grid">
+      <div class="card challenge">
+        <h3>Split-Brain File Storage</h3>
+        <div class="problem">Problem: Local disk storage + multiple K8s replicas = download failures</div>
+        <div class="solution">Solution: MinIO object storage with IFileStorage port</div>
+        <div class="detail">All pods read/write from the same MinIO instance. The port allows
+        migrating to GCS/S3 by changing one implementation file.</div>
+      </div>
+
+      <div class="card challenge">
+        <h3>CSP Blocking Inline Styles</h3>
+        <div class="problem">Problem: <code>style="display:none"</code> silently ignored by Helmet CSP</div>
+        <div class="solution">Solution: <code>.hidden</code> CSS class + <code>show()/hide()</code> utility</div>
+        <div class="detail">Helmet's <code>style-src 'self'</code> blocks all inline styles without
+        warning. Discovered after hours of debugging why elements were visible despite having
+        <code>display:none</code> in the HTML.</div>
+      </div>
+
+      <div class="card challenge">
+        <h3>Saga Compensation with Private Fields</h3>
+        <div class="problem">Problem: Entity already mutated to COMPLETED in memory, can't transition to FAILED</div>
+        <div class="solution">Solution: <code>reconstitute()</code> creates fresh entities in PROCESSING state</div>
+        <div class="detail">When a DB save fails after calling <code>job.complete()</code>, the state machine
+        rejects COMPLETED → FAILED. Reconstituting from the last persisted state (PROCESSING) allows
+        the FAILED transition.</div>
+      </div>
+
+      <div class="card challenge">
+        <h3>50MB Upload Without RAM Buffer</h3>
+        <div class="problem">Problem: multer memoryStorage holds entire file in RAM per request</div>
+        <div class="solution">Solution: multer diskStorage → createReadStream → MinIO stream</div>
+        <div class="detail">Files land in <code>os.tmpdir()</code>, get streamed to MinIO, and cleaned up.
+        No 50MB buffer in memory. Worker does the same: download from MinIO to temp, process with
+        ffmpeg, upload result, cleanup in <code>finally</code>.</div>
+      </div>
+
+      <div class="card challenge">
+        <h3>Clean Architecture Violations</h3>
+        <div class="problem">Problem: Controller importing repository directly (skipping application layer)</div>
+        <div class="solution">Solution: Extracted DownloadAudioUseCase to respect layer boundaries</div>
+        <div class="detail">Caught during code review. The download endpoint was calling
+        <code>audioRepo.findById()</code> from the controller. Refactored to a proper use case
+        that the controller delegates to.</div>
+      </div>
+
+      <div class="card challenge">
+        <h3>Graceful Shutdown During Processing</h3>
+        <div class="problem">Problem: SIGTERM kills worker mid-ffmpeg, job stuck in PROCESSING forever</div>
+        <div class="solution">Solution: <code>consumer.stop()</code> cancels consumer + waits for in-flight job</div>
+        <div class="detail">The consumer's <code>stop()</code> method calls <code>channel.cancel()</code>
+        and returns a Promise that resolves only when the current job finishes. Tested with a
+        concurrent test that verifies <code>stop()</code> doesn't resolve until the job completes.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Decisions -->
+  <section id="decisions">
+    <h2>Architecture Decision Records</h2>
+    <p>
+      Every non-obvious decision is documented with context, rationale, and consequences.
+      The ADRs answer "why" — the code answers "what".
+    </p>
+
+    <ul class="adr-list">
+      <li><span class="number">001</span><span class="title">Result/Either Pattern for Error Handling — no throw in domain/application</span></li>
+      <li><span class="number">002</span><span class="title">Clean Architecture with Four Layers — dependency direction enforced</span></li>
+      <li><span class="number">003</span><span class="title">Co-located Unit Tests, Separated Integration Tests</span></li>
+      <li><span class="number">004</span><span class="title">ILogger as Port, Multiple Adapters (Winston + Console)</span></li>
+      <li><span class="number">005</span><span class="title">Cache in the Use Case, Not the Repository — TTL depends on business logic</span></li>
+      <li><span class="number">006</span><span class="title">Saga Compensation Pattern — reconstitute entities for failure recovery</span></li>
+      <li><span class="number">007</span><span class="title">RabbitMQ Prefetch 1, Nack Without Requeue — DLQ recovery strategy</span></li>
+      <li><span class="number">008</span><span class="title">MinIO Object Storage — eliminates split-brain in multi-replica K8s</span></li>
+      <li><span class="number">009</span><span class="title">Contract Tests Only for Ports with Multiple Implementations (YAGNI)</span></li>
+      <li><span class="number">010</span><span class="title">Nginx Reverse Proxy — Express is API-only, nginx serves static files</span></li>
+      <li><span class="number">011</span><span class="title">TLS in Production — cert-manager + Ingress (documented, not implemented)</span></li>
+    </ul>
+  </section>
+
+  <!-- Tech Stack -->
+  <section id="stack">
+    <h2>Tech Stack</h2>
+
+    <div class="tech-grid">
+      <div class="tech-badge"><span class="category">Runtime</span> Node.js 22 + TypeScript 5</div>
+      <div class="tech-badge"><span class="category">API</span> Express 4 + Zod + Helmet</div>
+      <div class="tech-badge"><span class="category">Proxy</span> nginx (static + reverse proxy)</div>
+      <div class="tech-badge"><span class="category">Database</span> MongoDB 7 (Mongoose)</div>
+      <div class="tech-badge"><span class="category">Cache</span> Redis 7 (ioredis)</div>
+      <div class="tech-badge"><span class="category">Queue</span> RabbitMQ 3 (amqplib + DLQ)</div>
+      <div class="tech-badge"><span class="category">Storage</span> MinIO (S3-compatible)</div>
+      <div class="tech-badge"><span class="category">Audio</span> ffmpeg + ffprobe</div>
+      <div class="tech-badge"><span class="category">Testing</span> Vitest + Supertest + jsdom</div>
+      <div class="tech-badge"><span class="category">Linting</span> ESLint 9 + Stylelint</div>
+      <div class="tech-badge"><span class="category">Deploy</span> Docker Compose + Kubernetes</div>
+      <div class="tech-badge"><span class="category">Frontend</span> Vanilla JS (ES modules)</div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <p>Built by <a href="https://github.com/jorgeferrando">Jorge Ferrando</a> — <a href="https://github.com/jorgeferrando/audio-api">View Source</a></p>
+</footer>
+
+</body>
+</html>
