@@ -1,56 +1,56 @@
-# ADR 006 - Saga Compensation Pattern en ProcessJobUseCase
+# ADR 006 - Saga Compensation Pattern in ProcessJobUseCase
 
 ## Status
 Accepted
 
 ## Context
-`ProcessJobUseCase` necesita mantener dos entidades consistentes — `ProcessingJob`
-y `AudioTrack` — a través de varias operaciones de persistencia secuenciales.
-El flujo feliz es: ambas transicionan a PROCESSING, se procesan, ambas transicionan
-a COMPLETED/READY.
+`ProcessJobUseCase` needs to keep two entities consistent — `ProcessingJob`
+and `AudioTrack` — across several sequential persistence operations.
+The happy path is: both transition to PROCESSING, they are processed, both transition
+to COMPLETED/READY.
 
-El problema: sin una transacción distribuida, un fallo a mitad del flujo puede
-dejar las entidades en estados inconsistentes (e.g. job COMPLETED en memoria pero
-PROCESSING en DB, audio aún en PROCESSING).
+The problem: without a distributed transaction, a failure mid-flow can
+leave the entities in inconsistent states (e.g. job COMPLETED in memory but
+PROCESSING in DB, audio still in PROCESSING).
 
-MongoDB ofrece transacciones multi-documento desde la versión 4, pero añaden
-complejidad de sesión, latencia, y no cubren el caso donde el fallo ocurre
-*después* de que la lógica de dominio ya mutó las entidades en memoria.
+MongoDB offers multi-document transactions since version 4, but they add
+session complexity, latency, and do not cover the case where the failure occurs
+*after* the domain logic has already mutated the entities in memory.
 
 ## Decision
-Aplicar el **patrón Saga con compensación local**: si cualquier operación falla
-después de que ambas entidades están en PROCESSING en DB, se ejecutan acciones
-compensatorias que las marcan como FAILED.
+Apply the **Saga pattern with local compensation**: if any operation fails
+after both entities are in PROCESSING in DB, compensating actions are executed
+to mark them as FAILED.
 
 ```
-PENDING ──► PROCESSING ──► COMPLETED   ← flujo feliz
+PENDING ──► PROCESSING ──► COMPLETED   ← happy path
                   │
-                  └──► FAILED           ← compensación si falla algo post-PROCESSING
+                  └──► FAILED           ← compensation if something fails post-PROCESSING
 ```
 
-La compensación usa `reconstitute()` para crear entidades frescas en estado
-PROCESSING (el último estado persistido confirmado), ya que las entidades originales
-pueden haber sido mutadas en memoria a COMPLETED/READY y la máquina de estados
-rechazaría una transición directa a FAILED desde esos estados.
+The compensation uses `reconstitute()` to create fresh entities in PROCESSING
+state (the last confirmed persisted state), since the original entities
+may have been mutated in memory to COMPLETED/READY and the state machine
+would reject a direct transition to FAILED from those states.
 
 ## Consequences
 
-**Positivo:**
-- Las entidades nunca quedan atascadas en PROCESSING indefinidamente.
-- El estado en DB es siempre interpretable: PENDING (en cola), PROCESSING (worker
-  activo), COMPLETED/READY (terminado), FAILED (error conocido).
-- Sin dependencia de transacciones MongoDB — la lógica de compensación es explícita
-  y testeable en aislamiento.
+**Positive:**
+- Entities never get stuck in PROCESSING indefinitely.
+- The state in DB is always interpretable: PENDING (queued), PROCESSING (active
+  worker), COMPLETED/READY (finished), FAILED (known error).
+- No dependency on MongoDB transactions — the compensation logic is explicit
+  and testable in isolation.
 
-**Negativo:**
-- La compensación es *best-effort*: si el propio save de FAILED falla, las entidades
-  quedan en PROCESSING en DB. Mitigado por RabbitMQ: si el worker no hace `ack`,
-  el mensaje se reencola o va al DLQ para reintento manual.
-- No es atómica: hay una ventana entre el fallo y la compensación donde el estado
-  es transitoriamente inconsistente. Aceptable para este dominio (no es finanzas).
+**Negative:**
+- The compensation is *best-effort*: if the FAILED save itself fails, the entities
+  remain in PROCESSING in DB. Mitigated by RabbitMQ: if the worker does not `ack`,
+  the message is requeued or goes to the DLQ for manual retry.
+- It is not atomic: there is a window between the failure and the compensation where
+  the state is transiently inconsistent. Acceptable for this domain (it is not finance).
 
-**Alternativas descartadas:**
-- *Transacciones MongoDB*: añaden sesión y latencia; no cubren el fallo después
-  de mutar entidades en memoria.
-- *Eventos de dominio + rollback*: más correcto en DDD puro, pero sobreingeniería
-  para el scope de este proyecto (YAGNI).
+**Discarded alternatives:**
+- *MongoDB transactions*: add session and latency; do not cover failure after
+  mutating entities in memory.
+- *Domain events + rollback*: more correct in pure DDD, but over-engineering
+  for the scope of this project (YAGNI).

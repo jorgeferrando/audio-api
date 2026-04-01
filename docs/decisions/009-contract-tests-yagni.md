@@ -1,37 +1,37 @@
-# ADR 009 - Contract Tests solo para Ports con Múltiples Implementaciones
+# ADR 009 - Contract Tests only for Ports with Multiple Implementations
 
 ## Status
 Accepted
 
 ## Context
-El proyecto tiene 7 ports (interfaces): ILogger, IFileStorage, ICacheService,
+The project has 7 ports (interfaces): ILogger, IFileStorage, ICacheService,
 IAudioTrackRepository, IProcessingJobRepository, IAudioProcessor, IJobPublisher.
 
-Solo ILogger tiene contract tests compartidos (`loggerContract.ts`), porque es
-el único port con dos implementaciones (WinstonLogger + ConsoleLogger). Los
-demás ports tienen una sola implementación cada uno.
+Only ILogger has shared contract tests (`loggerContract.ts`), because it is
+the only port with two implementations (WinstonLogger + ConsoleLogger). The
+remaining ports have a single implementation each.
 
-Una revisión externa señaló que sin contract tests en todos los ports, un nuevo
-adaptador podría derivar del comportamiento esperado sin que los tests lo detecten.
+An external review noted that without contract tests on all ports, a new
+adapter could deviate from the expected behavior without the tests detecting it.
 
 ## Decision
-Aplicar YAGNI: solo crear contract tests cuando un port tenga más de una
-implementación. Con una sola implementación, los tests unitarios y de integración
-de esa implementación son el contract test de facto.
+Apply YAGNI: only create contract tests when a port has more than one
+implementation. With a single implementation, the unit and integration tests
+of that implementation are the de facto contract test.
 
 ## Consequences
 
-**Positivo:**
-- Menos código de test que mantener sin beneficio real.
-- Cuando se añada una segunda implementación (e.g. `S3FileStorage` para
-  `IFileStorage`), el contract test se crea en ese momento con conocimiento
-  real de qué comportamientos importa verificar — no especulativamente.
+**Positive:**
+- Less test code to maintain without real benefit.
+- When a second implementation is added (e.g. `S3FileStorage` for
+  `IFileStorage`), the contract test is created at that point with real knowledge
+  of which behaviors matter to verify — not speculatively.
 
-**Negativo:**
-- Si alguien añade una segunda implementación sin crear el contract test,
-  puede haber divergencia de comportamiento. Mitigado por code review.
+**Negative:**
+- If someone adds a second implementation without creating the contract test,
+  there may be behavioral divergence. Mitigated by code review.
 
-**Candidatos futuros:**
-- `IFileStorage` es el port con más probabilidad de tener una segunda
-  implementación (MinIO en dev, S3/GCS en producción). Cuando eso ocurra,
-  crear `fileStorageContract.ts` siguiendo el patrón de `loggerContract.ts`.
+**Future candidates:**
+- `IFileStorage` is the port most likely to have a second
+  implementation (MinIO in dev, S3/GCS in production). When that happens,
+  create `fileStorageContract.ts` following the pattern of `loggerContract.ts`.

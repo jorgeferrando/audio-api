@@ -1,46 +1,46 @@
-# ADR 008 - MinIO Object Storage en vez de Disco Local
+# ADR 008 - MinIO Object Storage instead of Local Disk
 
 ## Status
 Accepted
 
 ## Context
-El sistema originalmente almacenaba ficheros de audio en disco local vía multer
-(`uploads/originals/`, `uploads/processed/`). API y worker compartían un volumen
-Docker (`uploads_data`) y en K8s un PVC con `ReadWriteMany`.
+The system originally stored audio files on local disk via multer
+(`uploads/originals/`, `uploads/processed/`). API and worker shared a Docker
+volume (`uploads_data`) and in K8s a PVC with `ReadWriteMany`.
 
-Problema: con múltiples réplicas, el pod que recibe el upload puede no ser el
-que sirve el download. `ReadWriteMany` no está disponible en la mayoría de
-providers de cloud (EBS, hostPath). Esto causa fallos intermitentes sin error
-obvio — el peor tipo de bug en producción.
+Problem: with multiple replicas, the pod that receives the upload may not be the
+one that serves the download. `ReadWriteMany` is not available on most
+cloud providers (EBS, hostPath). This causes intermittent failures with no obvious
+error — the worst kind of bug in production.
 
 ## Decision
-Migrar el file storage a **MinIO**, un object storage S3-compatible que corre
-como servicio independiente. Todos los pods leen/escriben del mismo MinIO.
+Migrate file storage to **MinIO**, an S3-compatible object storage that runs
+as an independent service. All pods read/write from the same MinIO.
 
-**Flujo después de la migración:**
-1. Upload: multer `memoryStorage` → buffer en RAM → `IFileStorage.upload()` → MinIO
+**Flow after migration:**
+1. Upload: multer `memoryStorage` → buffer in RAM → `IFileStorage.upload()` → MinIO
 2. Worker: `IFileStorage.download()` → temp file → ffmpeg → `IFileStorage.upload()` → MinIO → cleanup temp
-3. Download: `IFileStorage.download()` → stream desde MinIO → HTTP response
+3. Download: `IFileStorage.download()` → stream from MinIO → HTTP response
 
 ## Consequences
 
-**Positivo:**
-- Elimina el split-brain de multi-réplica — todos los pods acceden al mismo storage.
-- El Port `IFileStorage` permite cambiar a S3 o GCS sin tocar dominio ni aplicación.
-- No se necesita PVC ni volumen compartido — simplifica los manifests de K8s.
-- MinIO corre en Docker para dev, en producción se migra a GCS/S3 cambiando solo
-  la implementación del port.
+**Positive:**
+- Eliminates the multi-replica split-brain — all pods access the same storage.
+- The `IFileStorage` port allows switching to S3 or GCS without touching domain or application.
+- No PVC or shared volume needed — simplifies K8s manifests.
+- MinIO runs in Docker for dev; in production it migrates to GCS/S3 by changing only
+  the port implementation.
 
-**Negativo:**
-- El worker necesita descargar el fichero a un temp local para ffmpeg (ffmpeg no
-  soporta streams S3). Añade latencia de descarga + subida.
-- Buffer en memoria para upload (multer memoryStorage) — con ficheros de 50MB, cada
-  request consume 50MB de RAM. Aceptable para el volumen esperado; en producción
-  con alto tráfico, se usaría streaming directo a MinIO con multer-s3.
-- MinIO es un servicio más que mantener (Docker container, healthcheck, volumen).
+**Negative:**
+- The worker needs to download the file to a local temp for ffmpeg (ffmpeg does not
+  support S3 streams). Adds download + upload latency.
+- In-memory buffer for upload (multer memoryStorage) — with 50MB files, each
+  request consumes 50MB of RAM. Acceptable for the expected volume; in production
+  with high traffic, direct streaming to MinIO with multer-s3 would be used.
+- MinIO is one more service to maintain (Docker container, healthcheck, volume).
 
-**Alternativas descartadas:**
-- *NFS/EFS para PVC ReadWriteMany*: añade complejidad de infra y no es portable
-  entre providers de cloud.
-- *Streaming directo a MinIO sin buffer*: requiere multer-s3 o similar, más complejo
-  de implementar y testear. YAGNI para el scope actual.
+**Discarded alternatives:**
+- *NFS/EFS for PVC ReadWriteMany*: adds infrastructure complexity and is not portable
+  across cloud providers.
+- *Direct streaming to MinIO without buffer*: requires multer-s3 or similar, more complex
+  to implement and test. YAGNI for the current scope.
