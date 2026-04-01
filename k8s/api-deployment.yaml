@@ -47,10 +47,3 @@ spec:
               port: 3000
             initialDelaySeconds: 15
             periodSeconds: 20
-          volumeMounts:
-            - name: uploads
-              mountPath: /app/uploads
-      volumes:
-        - name: uploads
-          persistentVolumeClaim:
-            claimName: audio-uploads-pvc

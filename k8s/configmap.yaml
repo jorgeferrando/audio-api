@@ -9,3 +9,6 @@ data:
   MONGODB_URI: mongodb://mongodb:27017/audio-api
   REDIS_URL: redis://redis:6379
   RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+  MINIO_ENDPOINT: minio
+  MINIO_PORT: "9000"
+  MINIO_BUCKET: audio-api
