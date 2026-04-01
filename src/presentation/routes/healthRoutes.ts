@@ -1,24 +1,16 @@
 import { Router } from 'express'
 import { StatusCodes } from 'http-status-codes'
-import mongoose from 'mongoose'
-import type { Redis } from 'ioredis'
-import type { Client as MinioClient } from 'minio'
 
-export interface HealthDependencies {
-  redis: Redis
-  minio: MinioClient
-  minioBucket: string
+export interface HealthCheck {
+  name: string
+  check: () => Promise<boolean>
 }
 
 /**
  * /health  — liveness probe: always 200 if the process is running.
- * /health/ready — readiness probe: checks MongoDB, Redis, MinIO connectivity.
- *
- * K8s uses liveness to decide when to restart a pod and readiness to decide
- * when to route traffic to it. A pod that can't reach MongoDB should not
- * receive requests, but it doesn't need to be killed — the DB might recover.
+ * /health/ready — readiness probe: runs all registered health checks.
  */
-export function healthRoutes(deps?: HealthDependencies): Router {
+export function healthRoutes(checks?: HealthCheck[]): Router {
   const router = Router()
 
   router.get('/', (_req, res) => {
@@ -26,41 +18,27 @@ export function healthRoutes(deps?: HealthDependencies): Router {
   })
 
   router.get('/ready', async (_req, res) => {
-    if (!deps) {
+    if (!checks || checks.length === 0) {
       res.status(StatusCodes.OK).json({ status: 'ok' })
       return
     }
 
-    const checks: Record<string, string> = {}
+    const results: Record<string, string> = {}
 
-    // MongoDB
-    try {
-      const state = mongoose.connection.readyState
-      checks.mongodb = state === 1 ? 'ok' : 'disconnected'
-    } catch {
-      checks.mongodb = 'error'
+    for (const { name, check } of checks) {
+      try {
+        results[name] = (await check()) ? 'ok' : 'error'
+      } catch {
+        results[name] = 'error'
+      }
     }
 
-    // Redis
-    try {
-      const pong = await deps.redis.ping()
-      checks.redis = pong === 'PONG' ? 'ok' : 'error'
-    } catch {
-      checks.redis = 'error'
-    }
+    const allOk = Object.values(results).every(v => v === 'ok')
 
-    // MinIO
-    try {
-      await deps.minio.bucketExists(deps.minioBucket)
-      checks.minio = 'ok'
-    } catch {
-      checks.minio = 'error'
-    }
-
-    const allOk = Object.values(checks).every(v => v === 'ok')
-    const status = allOk ? StatusCodes.OK : StatusCodes.SERVICE_UNAVAILABLE
-
-    res.status(status).json({ status: allOk ? 'ready' : 'degraded', checks })
+    res.status(allOk ? StatusCodes.OK : StatusCodes.SERVICE_UNAVAILABLE).json({
+      status: allOk ? 'ready' : 'degraded',
+      checks: results,
+    })
   })
 
   return router
