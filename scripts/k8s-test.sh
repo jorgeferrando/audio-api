@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# ── Prerequisites ────────────────────────────────────────────────────────────
+# 1. kubectl configured with a cluster
+# 2. audio-api deployed (run scripts/k8s-deploy.sh first)
+# 3. Port 8080 available (script creates a port-forward automatically)
+
 API="http://localhost:8080/api/v1"
 API_KEY="change-me-in-production"
 TMPDIR_LOCAL="$(pwd)/.tmp-k8s-test"

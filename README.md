@@ -219,6 +219,12 @@ bash scripts/k8s-test.sh
 
 Both scripts are cross-platform (Windows git bash, Linux, Mac).
 
+**Prerequisites for K8s deploy:**
+- Docker running + kubectl configured with a cluster (e.g. Docker Desktop with K8s enabled)
+- Logged in to ghcr.io: `echo $(gh auth token) | docker login ghcr.io -u YOUR_USER --password-stdin`
+- Requires GitHub token with `write:packages` scope: `gh auth refresh --hostname github.com --scopes write:packages`
+- The container package must be **public** for K8s to pull without imagePullSecrets (set at GitHub package settings)
+
 Manual deploy steps if preferred:
 
 ```bash
