@@ -1,7 +1,7 @@
 {
   "name": "audio-api",
   "version": "1.0.0",
-  "description": "Audio Processing Microservices API - Portfolio project for Voicemod application",
+  "description": "Audio Processing API with async worker — Node.js + Express + MongoDB + Redis + RabbitMQ",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
