@@ -1,8 +1,17 @@
 services:
+  nginx:
+    build: ./nginx
+    ports:
+      - '3000:80'
+    environment:
+      - API_KEY=dev-api-key-2024
+    volumes:
+      - ./src/presentation/public:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+
   api:
     build: .
-    ports:
-      - '3000:3000'
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongodb:27017/audio-api
@@ -23,8 +32,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
 
   worker:
     build: .

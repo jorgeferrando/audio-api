@@ -1,5 +1,3 @@
-import fs from 'fs'
-import path from 'path'
 import express, { Router } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -11,6 +9,10 @@ import { healthRoutes, type HealthCheck } from '@presentation/routes/healthRoute
 import { errorHandler } from '@presentation/middlewares/errorHandler'
 import { apiKeyAuth } from '@presentation/middlewares/apiKeyAuth'
 
+/**
+ * Creates the Express app — API only.
+ * Static files (HTML, CSS, JS) are served by nginx in production/Docker.
+ */
 export function createApp(
   controller: AudioController,
   logger: ILogger,
@@ -21,16 +23,7 @@ export function createApp(
   const app = express()
 
   // ── Security & parsing ──────────────────────────────────────────────────
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'"],
-        mediaSrc: ["'self'", "blob:"],
-      },
-    },
-  }))
+  app.use(helmet())
   app.use(cors())
   app.use(express.json())
 
@@ -40,16 +33,6 @@ export function createApp(
     standardHeaders: true,
     legacyHeaders: false,
   }))
-
-  // ── Static UI ────────────────────────────────────────────────────────────
-  const publicDir = path.resolve(process.cwd(), 'src', 'presentation', 'public')
-  const indexPath = path.join(publicDir, 'index.html')
-
-  app.get('/', (_req, res) => {
-    const html = fs.readFileSync(indexPath, 'utf-8')
-    res.type('html').send(html.replace('{{API_KEY}}', apiKey ?? ''))
-  })
-  app.use(express.static(publicDir, { etag: false, lastModified: false }))
 
   // ── Routes ──────────────────────────────────────────────────────────────
   const v1 = Router()

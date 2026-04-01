@@ -2,10 +2,10 @@
 
 # ── Prerequisites ────────────────────────────────────────────────────────────
 # 1. Docker Compose stack running (run scripts/docker-deploy.sh first)
-# API runs on port 3000 (no port-forward needed).
-# No API key required in dev mode (API_KEY not set in docker-compose.yml).
+# API runs on port 3000 via nginx reverse proxy.
 
 API="http://localhost:3000/api/v1"
+API_KEY="dev-api-key-2024"
 TMPDIR_LOCAL="$(pwd)/.tmp-docker-test"
 mkdir -p "$TMPDIR_LOCAL"
 
@@ -34,7 +34,7 @@ docker compose exec -T api cat $EXEC_TMP/docker-test.mp3 > "$TMPDIR_LOCAL/input.
 echo "OK: generated $(wc -c < "$TMPDIR_LOCAL/input.mp3") bytes"
 
 echo "=== 3. Upload ==="
-MSYS_NO_PATHCONV=1 curl -s -X POST "$API/audio" \
+MSYS_NO_PATHCONV=1 curl -s -H "x-api-key: $API_KEY" -X POST "$API/audio" \
   -F "file=$CURL_FILE;type=audio/mpeg" \
   -F "effect=REVERB" > "$TMPDIR_LOCAL/upload.json" || true
 
@@ -46,7 +46,7 @@ echo "OK: uploaded $TRACK_ID"
 echo "=== 4. Poll status ==="
 for i in $(seq 1 15); do
   sleep 2
-  RESP=$(curl -s "$API/audio/$TRACK_ID")
+  RESP=$(curl -s -H "x-api-key: $API_KEY" "$API/audio/$TRACK_ID")
   STATUS=$(echo "$RESP" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
   echo "  poll $i: $STATUS"
   if [ "$STATUS" = "READY" ]; then break; fi
@@ -57,7 +57,7 @@ if [ "$STATUS" != "READY" ]; then echo "FAIL: timeout waiting for READY"; cleanu
 echo "OK: status READY"
 
 echo "=== 5. Download ==="
-HTTP_CODE=$(curl -s -o "$TMPDIR_LOCAL/output.mp3" -w "%{http_code}" "$API/audio/$TRACK_ID/download")
+HTTP_CODE=$(curl -s -o "$TMPDIR_LOCAL/output.mp3" -w "%{http_code}" -H "x-api-key: $API_KEY" "$API/audio/$TRACK_ID/download")
 if [ "$HTTP_CODE" != "200" ]; then echo "FAIL: download returned $HTTP_CODE"; cleanup; exit 1; fi
 
 INPUT_SIZE=$(wc -c < "$TMPDIR_LOCAL/input.mp3")
