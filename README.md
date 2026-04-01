@@ -16,7 +16,7 @@ Clean Architecture with four layers:
 presentation/     Controllers, routes, middlewares (auth, error handling)
 application/      Use cases, DTOs, application ports
 domain/           Entities, value objects, repository ports
-infrastructure/   MongoDB, Redis, RabbitMQ, Express, ffmpeg, Winston
+infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, Winston
 ```
 
 ### Request Flow
@@ -30,7 +30,7 @@ infrastructure/   MongoDB, Redis, RabbitMQ, Express, ffmpeg, Winston
                                                                   │
   Worker:                         ProcessJobUseCase ◄── Consumer ◄┘
                                        │
-                                  ffmpeg (apply effect)
+                                  MinIO (download original) → ffmpeg → MinIO (upload processed)
                                        │
                                   MongoDB (READY) + Redis (invalidate)
 
@@ -39,12 +39,12 @@ infrastructure/   MongoDB, Redis, RabbitMQ, Express, ffmpeg, Winston
                                          Redis hit? ──► cached DTO
                                          Redis miss? ──► MongoDB ──► cache
 
-  Download: Client ──► AudioController ──► DownloadAudioUseCase ──► stream file
+  Download: Client ──► AudioController ──► DownloadAudioUseCase ──► MinIO stream
 ```
 
 **Key patterns:**
 - Result/Either monad for error handling (no throw in domain/application)
-- Port & Adapter for all infrastructure (repositories, cache, queue, audio processor)
+- Port & Adapter for all infrastructure (repositories, cache, queue, audio processor, file storage)
 - Saga compensation for multi-entity consistency in async processing
 - API key authentication on protected routes
 - TDD with 140+ tests (unit + integration + contract)
@@ -110,6 +110,7 @@ Returns the processed audio file as a binary stream. Only available when `status
 - **Database:** MongoDB 7 (Mongoose ODM)
 - **Cache:** Redis 7 (ioredis) with TTL strategy (5s in-flight, 5min terminal)
 - **Queue:** RabbitMQ 3 (amqplib) with Dead Letter Queue
+- **Storage:** MinIO (S3-compatible object storage via minio SDK)
 - **Audio:** ffmpeg via fluent-ffmpeg (normalize, reverb, echo, pitch shift, noise reduction)
 - **Auth:** API key middleware (x-api-key header)
 - **Logging:** Winston (JSON in prod, pretty print in dev)
@@ -145,7 +146,7 @@ The web UI includes a demo tone generator — no audio files needed to test.
 
 ```bash
 # Start only infrastructure
-docker compose up -d mongodb redis rabbitmq
+docker compose up -d mongodb redis rabbitmq minio
 
 # Copy environment variables
 cp .env.example .env
@@ -182,6 +183,7 @@ src/
   application/
     audio/          UploadAudio, GetAudioStatus, DownloadAudio use cases, DTO
     job/            ProcessJobUseCase, IJobPublisher, IAudioProcessor ports
+    storage/        IFileStorage port
   infrastructure/
     audio/          FfmpegAudioProcessor
     cache/          RedisCacheService
@@ -189,6 +191,7 @@ src/
     http/           Express app setup, multer config
     logger/         WinstonLogger, ConsoleLogger
     queue/          RabbitMQ publisher, consumer, setup
+    storage/        MinioFileStorage
   presentation/
     controllers/    AudioController
     middlewares/    API key auth, error handler
