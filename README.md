@@ -4,7 +4,7 @@ REST API for audio processing with async job execution via message queues.
 
 Upload an audio file, apply an effect (reverb, echo, pitch shift...), and download the processed result.
 
-Built with **Node.js**, **Express**, **MongoDB**, **Redis** and **RabbitMQ**.
+Built with **Node.js**, **Express**, **MongoDB**, **Redis**, **RabbitMQ** and **MinIO**.
 
 ![Web UI](docs/screenshot.png)
 
@@ -13,43 +13,43 @@ Built with **Node.js**, **Express**, **MongoDB**, **Redis** and **RabbitMQ**.
 Clean Architecture with four layers:
 
 ```
-presentation/     Controllers, routes, middlewares (auth, error handling)
+presentation/     Controllers, routes, middlewares (auth, validation, error handling)
 application/      Use cases, DTOs, application ports
 domain/           Entities, value objects, repository ports
-infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, Winston
+infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, nginx, Winston
 ```
 
 ### Request Flow
 
 ```
-  Upload:   Client ──► multer ──► AudioController ──► UploadAudioUseCase
-                                                          │
-                                    AudioTrack + ProcessingJob ──► MongoDB
-                                                          │
-                                              Job message ──► RabbitMQ
-                                                                  │
-  Worker:                         ProcessJobUseCase ◄── Consumer ◄┘
-                                       │
-                                  MinIO (download original) → ffmpeg → MinIO (upload processed)
-                                       │
-                                  MongoDB (READY) + Redis (invalidate)
+  Upload:   Client ──► nginx ──► multer ──► AudioController
+                                                │
+                              ffprobe validates audio content
+                                                │
+                              Stream to MinIO ──► UploadAudioUseCase ──► MongoDB + RabbitMQ
 
-  Status:   Client ──► AudioController ──► GetAudioStatusUseCase
-                                               │
-                                         Redis hit? ──► cached DTO
-                                         Redis miss? ──► MongoDB ──► cache
+  Worker:                     ProcessJobUseCase ◄── Consumer ◄── RabbitMQ
+                                   │
+                              MinIO (download) → ffmpeg (apply effect) → MinIO (upload)
+                                   │
+                              MongoDB (READY) + Redis (invalidate)
 
-  Download: Client ──► AudioController ──► DownloadAudioUseCase ──► MinIO stream
+  Status:   Client ──► nginx ──► AudioController ──► GetAudioStatusUseCase
+                                                          │
+                                                    Redis hit? ──► cached DTO
+                                                    Redis miss? ──► MongoDB ──► cache
+
+  Download: Client ──► nginx ──► AudioController ──► DownloadAudioUseCase ──► MinIO stream
 ```
 
 **Key patterns:**
 - Result/Either monad for error handling (no throw in domain/application)
 - Port & Adapter for all infrastructure (repositories, cache, queue, audio processor, file storage)
-- Saga compensation for multi-entity consistency in async processing
-- API key authentication on protected routes
-- TDD with 174+ tests (unit + integration + contract)
+- Saga compensation with graceful drain for multi-entity consistency
+- API key authentication, CSP-compliant frontend (no inline styles/scripts)
+- TDD with 176+ tests (unit + integration + contract + frontend)
 
-Architecture decisions are documented in [`docs/decisions/`](docs/decisions/).
+Architecture decisions are documented in [`docs/decisions/`](docs/decisions/) (11 ADRs).
 
 ## Endpoints
 
@@ -60,12 +60,12 @@ Architecture decisions are documented in [`docs/decisions/`](docs/decisions/).
 | GET    | /api/v1/audio/:id          | Yes  | Get audio track status   | 200    |
 | GET    | /api/v1/audio/:id/download | Yes  | Download processed audio | 200    |
 | DELETE | /api/v1/audio/:id          | Yes  | Delete track + files     | 204    |
-| GET    | /api/v1/health             | No   | Health check             | 200    |
+| GET    | /api/v1/health             | No   | Health check (liveness)  | 200    |
 | GET    | /api/v1/health/ready       | No   | Readiness probe          | 200    |
 
 `GET /api/v1/audio` supports pagination: `?limit=50&offset=0` (default). Max limit: 100.
 
-Authentication: send `x-api-key` header. Set `API_KEY` in `.env` to enable (disabled by default in dev).
+Authentication: send `x-api-key` header. Set `API_KEY` in `.env` to enable.
 
 ### POST /api/v1/audio
 
@@ -78,6 +78,18 @@ Response `202 Accepted`:
 {
   "audioTrackId": "uuid",
   "jobId": "uuid"
+}
+```
+
+### GET /api/v1/audio
+
+Response `200 OK`:
+```json
+{
+  "items": [{ "audioTrackId": "...", "filename": "...", "status": "READY", ... }],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
 }
 ```
 
@@ -104,24 +116,21 @@ Response `200 OK`:
 }
 ```
 
-### GET /api/v1/audio/:id/download
-
-Returns the processed audio file as a binary stream. Only available when `status` is `READY`.
-
 ## Tech Stack
 
 - **Runtime:** Node.js 22 + TypeScript 5
-- **HTTP:** Express 4 (API only) + nginx (static files + reverse proxy) + Zod + Helmet + rate limiting
+- **HTTP:** Express 4 (API only) + nginx (static files, reverse proxy, cache headers)
 - **Database:** MongoDB 7 (Mongoose ODM)
 - **Cache:** Redis 7 (ioredis) with TTL strategy (5s in-flight, 5min terminal)
-- **Queue:** RabbitMQ 3 (amqplib) with Dead Letter Queue
-- **Storage:** MinIO (S3-compatible object storage via minio SDK)
-- **Audio:** ffmpeg via fluent-ffmpeg (normalize, reverb, echo, pitch shift, noise reduction)
+- **Queue:** RabbitMQ 3 (amqplib) with Dead Letter Queue + graceful drain
+- **Storage:** MinIO (S3-compatible object storage, streaming upload/download)
+- **Audio:** ffmpeg via fluent-ffmpeg + ffprobe content validation
 - **Auth:** API key middleware (x-api-key header)
 - **Logging:** Winston (JSON in prod, pretty print in dev)
-- **Testing:** Vitest + mongodb-memory-server + Supertest
-- **Linting:** ESLint 9 (flat config) + @typescript-eslint + Stylelint
-- **Deployment:** Docker Compose + Kubernetes manifests + nginx
+- **Frontend:** Vanilla JS (ES modules, AbortController, CSS nesting, oklch, Stylelint)
+- **Testing:** Vitest + mongodb-memory-server + Supertest + jsdom
+- **Linting:** ESLint 9 + @typescript-eslint + Stylelint
+- **Deployment:** Docker Compose + Kubernetes + nginx + ghcr.io
 
 ## Getting Started
 
@@ -137,7 +146,7 @@ git clone https://github.com/jorgeferrando/audio-api.git
 cd audio-api
 
 # One-button deploy + test
-bash scripts/docker-deploy.sh    # Build and start all services
+bash scripts/docker-deploy.sh    # Build and start all 7 services
 bash scripts/docker-test.sh      # Run production smoke tests
 
 # Open the web UI
@@ -151,7 +160,7 @@ No registry login required — everything runs locally.
 
 ```bash
 # Start only infrastructure
-docker compose up -d mongodb redis rabbitmq minio
+docker compose up -d mongodb redis rabbitmq minio nginx
 
 # Copy environment variables
 cp .env.example .env
@@ -175,7 +184,7 @@ npm run dev:worker
 | `npm test`          | Run all tests                         |
 | `npm run test:watch`| Run tests in watch mode               |
 | `npm run test:coverage` | Run tests with coverage report    |
-| `npm run lint`      | Run ESLint                            |
+| `npm run lint`      | Run ESLint + Stylelint                |
 | `npm run type-check`| Run TypeScript type checker           |
 
 ## Project Structure
@@ -186,40 +195,39 @@ src/
     audio/          AudioTrack entity, IAudioTrackRepository port
     job/            ProcessingJob entity, IProcessingJobRepository port
   application/
-    audio/          UploadAudio, GetAudioStatus, DownloadAudio use cases, DTO
+    audio/          UploadAudio, GetAudioStatus, DownloadAudio, ListAudioTracks, DeleteAudio
     job/            ProcessJobUseCase, IJobPublisher, IAudioProcessor ports
     storage/        IFileStorage port
   infrastructure/
-    audio/          FfmpegAudioProcessor
+    audio/          FfmpegAudioProcessor, validateAudio (ffprobe)
     cache/          RedisCacheService
     db/             Mongoose models, repositories, connection
     http/           Express app setup, multer config
     logger/         WinstonLogger, ConsoleLogger
-    queue/          RabbitMQ publisher, consumer, setup
+    queue/          RabbitMQ publisher, consumer (with graceful drain), setup
     storage/        MinioFileStorage
   presentation/
     controllers/    AudioController
-    middlewares/    API key auth, error handler
-    public/         Web UI (single-page HTML)
-    routes/         Audio routes, health routes
+    middlewares/    API key auth, audio validation, error handler
+    public/         Web UI (HTML + CSS + 9 JS modules)
+    routes/         Audio routes (paginated), health routes (liveness + readiness)
   shared/           Result, AppError, ILogger, ICacheService
+nginx/              Reverse proxy config, Dockerfile, entrypoint
 docs/
   decisions/        Architecture Decision Records (11 ADRs)
-k8s/                Kubernetes manifests
+k8s/                Kubernetes manifests (7 files)
+scripts/            Deploy and test scripts (Docker + K8s)
 tests/
   integration/      MongoDB repository + HTTP integration tests
 ```
 
 ## Kubernetes
 
-The `k8s/` directory contains tested manifests that deploy the full stack (8 pods). Two scripts automate the entire workflow:
+The `k8s/` directory contains tested manifests that deploy the full stack. Two scripts automate the workflow:
 
 ```bash
-# One-button deploy: build, push, deploy all manifests, wait for pods
-bash scripts/k8s-deploy.sh
-
-# One-button production test: health + auth + upload + process + download
-bash scripts/k8s-test.sh
+bash scripts/k8s-deploy.sh      # Build, push, deploy all manifests, wait for pods
+bash scripts/k8s-test.sh        # Health + auth + upload + process + download + cleanup
 ```
 
 Both scripts are cross-platform (Windows git bash, Linux, Mac).
@@ -230,39 +238,28 @@ Both scripts are cross-platform (Windows git bash, Linux, Mac).
 - Requires GitHub token with `write:packages` scope: `gh auth refresh --hostname github.com --scopes write:packages`
 - The container package must be **public** for K8s to pull without imagePullSecrets (set at GitHub package settings)
 
-Manual deploy steps if preferred:
-
-```bash
-docker build -t ghcr.io/jorgeferrando/audio-api:latest .
-docker push ghcr.io/jorgeferrando/audio-api:latest
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/infra.yaml
-kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
-kubectl apply -f k8s/api-deployment.yaml -f k8s/api-service.yaml -f k8s/worker-deployment.yaml
-kubectl -n audio-api port-forward svc/audio-api 8080:80
-```
-
-API and worker share the same Docker image but are deployed as **separate Deployments** with independent scaling and resource limits:
+API and worker share the same Docker image but are deployed as **separate Deployments** with independent scaling:
 
 | Deployment | Replicas | CPU | Memory | Entry point |
 |---|---|---|---|---|
 | `audio-api` | 2 | 100m - 500m | 128Mi - 512Mi | `src/index.ts` (default CMD) |
 | `audio-worker` | 2 | 250m - 1000m | 256Mi - 1Gi | `npx tsx src/worker.ts` (command override) |
 
-The worker gets more CPU because ffmpeg is CPU-intensive. Scaling is independent: you can run 2 API pods and 10 worker pods if processing demand requires it.
-
-Storage uses MinIO (S3-compatible) instead of a shared PVC — see [ADR 008](docs/decisions/008-minio-object-storage.md).
+Storage uses MinIO (S3-compatible) — see [ADR 008](docs/decisions/008-minio-object-storage.md).
+TLS in production via cert-manager + Ingress — see [ADR 011](docs/decisions/011-tls-in-production.md).
 
 ## Testing
 
 ```bash
-npm test                    # 174+ tests
-npm run test:coverage       # with coverage report (85%+ statements, 90%+ branches)
+npm test                    # 176+ tests
+npm run test:coverage       # 85%+ statements, 91%+ branches
 ```
 
 - **Unit tests:** co-located with implementation (`src/**/*.test.ts`)
 - **Integration tests:** `tests/integration/` (mongodb-memory-server + Supertest)
 - **Contract tests:** shared test suites for port implementations (ILogger)
+- **Frontend tests:** DOM utilities and constants (`src/**/js/*.test.js`)
+- **Smoke tests:** end-to-end via scripts (`scripts/docker-test.sh`, `scripts/k8s-test.sh`)
 
 ## License
 
