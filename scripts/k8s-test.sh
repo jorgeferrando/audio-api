@@ -78,6 +78,9 @@ INPUT_SIZE=$(wc -c < "$TMPDIR_LOCAL/input.mp3")
 OUTPUT_SIZE=$(wc -c < "$TMPDIR_LOCAL/output.mp3")
 echo "OK: download 200 (input: ${INPUT_SIZE}B, output: ${OUTPUT_SIZE}B)"
 
+echo "=== 7. Cleanup test track ==="
+curl -s -H "x-api-key: $API_KEY" -X DELETE "$API/audio/$TRACK_ID" -o /dev/null -w "%{http_code}" | grep -q "204" && echo "OK: deleted $TRACK_ID" || echo "WARN: cleanup failed"
+
 echo ""
 echo "=== ALL TESTS PASSED ==="
 cleanup

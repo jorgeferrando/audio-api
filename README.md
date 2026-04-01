@@ -47,7 +47,7 @@ infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, Winston
 - Port & Adapter for all infrastructure (repositories, cache, queue, audio processor, file storage)
 - Saga compensation for multi-entity consistency in async processing
 - API key authentication on protected routes
-- TDD with 140+ tests (unit + integration + contract)
+- TDD with 167+ tests (unit + integration + contract)
 
 Architecture decisions are documented in [`docs/decisions/`](docs/decisions/).
 
@@ -106,7 +106,7 @@ Returns the processed audio file as a binary stream. Only available when `status
 ## Tech Stack
 
 - **Runtime:** Node.js 22 + TypeScript 5
-- **HTTP:** Express 4 + Zod validation + Helmet + CORS + rate limiting
+- **HTTP:** Express 4 (API only) + nginx (static files + reverse proxy) + Zod + Helmet + rate limiting
 - **Database:** MongoDB 7 (Mongoose ODM)
 - **Cache:** Redis 7 (ioredis) with TTL strategy (5s in-flight, 5min terminal)
 - **Queue:** RabbitMQ 3 (amqplib) with Dead Letter Queue
@@ -115,8 +115,8 @@ Returns the processed audio file as a binary stream. Only available when `status
 - **Auth:** API key middleware (x-api-key header)
 - **Logging:** Winston (JSON in prod, pretty print in dev)
 - **Testing:** Vitest + mongodb-memory-server + Supertest
-- **Linting:** ESLint 9 (flat config) + @typescript-eslint
-- **Deployment:** Docker Compose + Kubernetes manifests
+- **Linting:** ESLint 9 (flat config) + @typescript-eslint + Stylelint
+- **Deployment:** Docker Compose + Kubernetes manifests + nginx
 
 ## Getting Started
 
@@ -199,7 +199,7 @@ src/
     routes/         Audio routes, health routes
   shared/           Result, AppError, ILogger, ICacheService
 docs/
-  decisions/        Architecture Decision Records (9 ADRs)
+  decisions/        Architecture Decision Records (10 ADRs)
 k8s/                Kubernetes manifests
 tests/
   integration/      MongoDB repository + HTTP integration tests
@@ -251,7 +251,7 @@ Storage uses MinIO (S3-compatible) instead of a shared PVC — see [ADR 008](doc
 ## Testing
 
 ```bash
-npm test                    # 140+ tests
+npm test                    # 167+ tests
 npm run test:coverage       # with coverage report (85%+ statements, 90%+ branches)
 ```
 
