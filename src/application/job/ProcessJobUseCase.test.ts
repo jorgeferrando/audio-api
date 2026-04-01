@@ -7,7 +7,6 @@ vi.mock('fs', async (importOriginal) => {
     ...actual,
     default: {
       ...actual,
-      readFileSync: vi.fn().mockReturnValue(Buffer.from('processed-audio')),
       unlinkSync: vi.fn(),
       createWriteStream: vi.fn().mockReturnValue({
         on: vi.fn().mockReturnThis(),
@@ -19,6 +18,10 @@ vi.mock('fs', async (importOriginal) => {
     },
   }
 })
+
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn().mockResolvedValue(Buffer.from('processed-audio')),
+}))
 
 vi.mock('stream/promises', () => ({
   pipeline: vi.fn().mockResolvedValue(undefined),

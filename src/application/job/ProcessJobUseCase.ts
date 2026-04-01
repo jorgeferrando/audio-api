@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { readFile } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -92,7 +93,7 @@ export class ProcessJobUseCase {
       // ── Upload processed file back to storage ─────────────────────────────
 
       const outputKey = `processed/${audio.id}_${job.effect}${ext}`
-      const processedBuffer = fs.readFileSync(tempOutput)
+      const processedBuffer = await readFile(tempOutput)
 
       const uploadResult = await this.fileStorage.upload(outputKey, processedBuffer, audio.mimeType)
       if (uploadResult.isErr()) {
@@ -128,7 +129,7 @@ export class ProcessJobUseCase {
     } finally {
       // ── Cleanup temp files ──────────────────────────────────────────────
       for (const f of [tempInput, tempOutput]) {
-        try { fs.unlinkSync(f) } catch { /* already deleted or never created */ }
+        fs.unlink(f, () => {}) // fire-and-forget cleanup
       }
     }
   }
