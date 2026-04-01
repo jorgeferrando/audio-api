@@ -52,3 +52,21 @@ ackear ni nackear.
 - Sin reintento automático, un fallo transitorio (red, DB caída momentáneamente)
   manda el mensaje al DLQ en vez de reintentarlo. Mitigación: añadir lógica de
   retry con backoff exponencial antes del nack final (fuera del scope actual).
+
+## DLQ recovery strategy
+
+Los mensajes en `audio.dlq` no se reintentan automáticamente. El flujo de
+recuperación previsto es:
+
+1. **Monitorización:** alertar cuando `audio.dlq` tiene mensajes (via RabbitMQ
+   management API o Prometheus exporter).
+2. **Inspección:** revisar manualmente el contenido del mensaje y los logs del
+   worker para identificar la causa del fallo.
+3. **Reintento manual:** una vez corregido el problema, mover los mensajes del
+   DLQ de vuelta a `audio.jobs` (`rabbitmqadmin` o script dedicado).
+4. **Notificación al cliente:** el endpoint `GET /audio/:id` devuelve `status: FAILED`
+   con el error message del job, para que el cliente sepa que su audio no se procesó.
+
+**Extensiones futuras (fuera del scope actual):**
+- Retry automático con backoff exponencial (TTL + re-routing en RabbitMQ).
+- Webhook de notificación al cliente cuando un job falla.
