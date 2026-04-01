@@ -207,12 +207,30 @@ tests/
 
 ## Kubernetes
 
-The `k8s/` directory contains production-ready manifests. API and worker share the same Docker image but are deployed as **separate Deployments** with independent scaling and resource limits:
+The `k8s/` directory contains tested manifests that deploy the full stack (8 pods):
+
+```bash
+# Build and push the image
+docker build -t ghcr.io/jorgeferrando/audio-api:latest .
+docker push ghcr.io/jorgeferrando/audio-api:latest
+
+# Deploy to cluster
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/infra.yaml
+kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
+kubectl apply -f k8s/api-deployment.yaml -f k8s/api-service.yaml -f k8s/worker-deployment.yaml
+
+# Access the API
+kubectl -n audio-api port-forward svc/audio-api 8080:80
+curl http://localhost:8080/api/v1/health
+```
+
+API and worker share the same Docker image but are deployed as **separate Deployments** with independent scaling and resource limits:
 
 | Deployment | Replicas | CPU | Memory | Entry point |
 |---|---|---|---|---|
 | `audio-api` | 2 | 100m - 500m | 128Mi - 512Mi | `src/index.ts` (default CMD) |
-| `audio-worker` | 2 | 250m - 1000m | 256Mi - 1Gi | `node dist/worker.js` (command override) |
+| `audio-worker` | 2 | 250m - 1000m | 256Mi - 1Gi | `npx tsx src/worker.ts` (command override) |
 
 The worker gets more CPU because ffmpeg is CPU-intensive. Scaling is independent: you can run 2 API pods and 10 worker pods if processing demand requires it.
 
