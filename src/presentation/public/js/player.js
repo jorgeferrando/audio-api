@@ -24,6 +24,7 @@ export function initPlayer(playerEl) {
   }
 
   btn.addEventListener('click', () => {
+    if (!audio.src || audio.src === window.location.href) return
     if (audio.paused) audio.play(); else audio.pause()
   })
 
