@@ -50,6 +50,6 @@ export default tseslint.config(
 
   {
     // Ignore build output and config files
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'src/presentation/public/**'],
   },
 )

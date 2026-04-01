@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import express from 'express'
+import express, { Router } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -23,8 +23,8 @@ export function createApp(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
         mediaSrc: ["'self'", "blob:"],
       },
     },
@@ -49,8 +49,11 @@ export function createApp(
   })
 
   // ── Routes ──────────────────────────────────────────────────────────────
-  app.use('/api/v1/health', healthRoutes())
-  app.use('/api/v1/audio',  apiKeyAuth(apiKey), audioRoutes(controller))
+  const v1 = Router()
+  v1.use('/health', healthRoutes())
+  v1.use('/audio',  apiKeyAuth(apiKey), audioRoutes(controller))
+
+  app.use('/api/v1', v1)
 
   // ── Global error handler (must be last) ─────────────────────────────────
   app.use(errorHandler(logger))
