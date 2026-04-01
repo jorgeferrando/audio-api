@@ -6,7 +6,6 @@ import { z } from 'zod'
 import { StatusCodes } from 'http-status-codes'
 import { ValidationError } from '@shared/AppError'
 import { AudioEffect } from '@domain/job/ProcessingJob'
-import { validateAudioContent } from '@infrastructure/audio/validateAudio'
 import type { IFileStorage } from '@application/storage/IFileStorage'
 import type { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import type { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
@@ -34,14 +33,6 @@ export class AudioController {
     if (!parsed.success) {
       this.cleanupTempFile(req.file.path)
       next(new ValidationError(parsed.error.issues[0].message))
-      return
-    }
-
-    // Validate real audio content via ffprobe (prevents spoofed MIME types)
-    const isRealAudio = await validateAudioContent(req.file.path)
-    if (!isRealAudio) {
-      this.cleanupTempFile(req.file.path)
-      next(new ValidationError('file does not contain valid audio data'))
       return
     }
 

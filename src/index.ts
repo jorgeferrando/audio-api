@@ -13,6 +13,8 @@ import { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
 import { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
 import { AudioController } from '@presentation/controllers/AudioController'
+import { validateAudioMiddleware } from '@presentation/middlewares/validateAudio'
+import { validateAudioContent } from '@infrastructure/audio/validateAudio'
 import { createApp } from '@infrastructure/http/app'
 
 dotenv.config()
@@ -59,9 +61,17 @@ async function main(): Promise<void> {
 
   // ── HTTP ──────────────────────────────────────────────────────────────
   const controller = new AudioController(uploadAudio, getAudioStatus, downloadAudio, fileStorage)
-  const app        = createApp(controller, logger, process.env.API_KEY, {
-    redis, minio: minioClient, minioBucket: MINIO_BUCKET,
-  })
+
+  const healthChecks = [
+    { name: 'mongodb', check: async () => (await import('mongoose')).default.connection.readyState === 1 },
+    { name: 'redis',   check: async () => (await redis.ping()) === 'PONG' },
+    { name: 'minio',   check: async () => { await minioClient.bucketExists(MINIO_BUCKET); return true } },
+  ]
+
+  const app = createApp(
+    controller, logger, process.env.API_KEY,
+    healthChecks, validateAudioMiddleware(validateAudioContent),
+  )
 
   const server = app.listen(PORT, () => {
     logger.info(`API server listening on port ${PORT}`)

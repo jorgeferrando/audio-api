@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Readable } from 'stream'
 
-vi.mock('@infrastructure/audio/validateAudio', () => ({
-  validateAudioContent: vi.fn().mockResolvedValue(true),
-}))
-
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
