@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit'
 import type { ILogger } from '@shared/ILogger'
 import type { AudioController } from '@presentation/controllers/AudioController'
 import { audioRoutes } from '@presentation/routes/audioRoutes'
-import { healthRoutes } from '@presentation/routes/healthRoutes'
+import { healthRoutes, type HealthDependencies } from '@presentation/routes/healthRoutes'
 import { errorHandler } from '@presentation/middlewares/errorHandler'
 import { apiKeyAuth } from '@presentation/middlewares/apiKeyAuth'
 
@@ -15,6 +15,7 @@ export function createApp(
   controller: AudioController,
   logger: ILogger,
   apiKey?: string,
+  healthDeps?: HealthDependencies,
 ): express.Application {
   const app = express()
 
@@ -51,7 +52,7 @@ export function createApp(
 
   // ── Routes ──────────────────────────────────────────────────────────────
   const v1 = Router()
-  v1.use('/health', healthRoutes())
+  v1.use('/health', healthRoutes(healthDeps))
   v1.use('/audio',  apiKeyAuth(apiKey), audioRoutes(controller))
 
   app.use('/api/v1', v1)

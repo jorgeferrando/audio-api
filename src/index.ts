@@ -59,7 +59,9 @@ async function main(): Promise<void> {
 
   // ── HTTP ──────────────────────────────────────────────────────────────
   const controller = new AudioController(uploadAudio, getAudioStatus, downloadAudio, fileStorage)
-  const app        = createApp(controller, logger, process.env.API_KEY)
+  const app        = createApp(controller, logger, process.env.API_KEY, {
+    redis, minio: minioClient, minioBucket: MINIO_BUCKET,
+  })
 
   const server = app.listen(PORT, () => {
     logger.info(`API server listening on port ${PORT}`)
