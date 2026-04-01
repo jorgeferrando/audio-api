@@ -60,8 +60,12 @@ async function main(): Promise<void> {
   logger.info('Worker started, consuming audio.jobs queue')
 
   // ── Graceful shutdown ─────────────────────────────────────────────────
+  // 1. Stop accepting new messages (channel.cancel)
+  // 2. Wait for the in-flight job to finish (drain)
+  // 3. Close connections
   const shutdown = async (): Promise<void> => {
     logger.info('Worker shutting down...')
+    await consumer.stop()
     await disconnectRabbitMQ(rabbitConn, logger)
     redis.disconnect()
     await disconnectMongo(logger)

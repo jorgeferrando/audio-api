@@ -6,20 +6,16 @@ import { QUEUES } from './queues'
 /**
  * RabbitMQConsumer — queue adapter for the worker process.
  *
- * Responsibilities:
- *   - Register a consumer on audio.jobs.
- *   - Parse incoming messages and delegate to ProcessJobUseCase.
- *   - Ack on success, nack (→ DLQ) on any failure.
- *
- * Prefetch 1: the worker processes one job at a time. This prevents a slow
- * job from blocking others on multi-worker deployments and keeps memory usage
- * predictable. Increase prefetch if throughput becomes a bottleneck.
- *
- * Nack without requeue: failed messages go to audio.dlq automatically via the
- * dead-letter binding set up in rabbitMQSetup.ts. Requeuing would cause an
- * infinite retry loop for deterministic failures (e.g. corrupt audio file).
+ * Supports graceful drain: when stop() is called (e.g. on SIGTERM), the
+ * consumer stops accepting new messages and waits for the in-flight job
+ * to finish before resolving. This prevents half-processed files and
+ * ensures the job is properly acked/nacked before the connection closes.
  */
 export class RabbitMQConsumer {
+  #consumerTag?: string
+  #processing = false
+  #drainResolve?: () => void
+
   constructor(
     private readonly channel: Channel,
     private readonly processJobUseCase: ProcessJobUseCase,
@@ -29,8 +25,10 @@ export class RabbitMQConsumer {
   async start(): Promise<void> {
     await this.channel.prefetch(1)
 
-    await this.channel.consume(QUEUES.JOBS, async (msg: ConsumeMessage | null) => {
-      if (!msg) return // broker cancelled the consumer — nothing to do
+    const { consumerTag } = await this.channel.consume(QUEUES.JOBS, async (msg: ConsumeMessage | null) => {
+      if (!msg) return
+
+      this.#processing = true
 
       try {
         const payload = JSON.parse(msg.content.toString()) as { jobId: string }
@@ -49,9 +47,28 @@ export class RabbitMQConsumer {
       } catch (e) {
         this.logger.error('RabbitMQConsumer: unexpected error, sending to DLQ', { error: e })
         this.channel.nack(msg, false, false)
+      } finally {
+        this.#processing = false
+        if (this.#drainResolve) this.#drainResolve()
       }
     })
 
+    this.#consumerTag = consumerTag
     this.logger.info('RabbitMQConsumer: listening', { queue: QUEUES.JOBS })
+  }
+
+  /** Stop accepting new messages and wait for the current job to finish. */
+  async stop(): Promise<void> {
+    if (this.#consumerTag) {
+      await this.channel.cancel(this.#consumerTag)
+      this.logger.info('RabbitMQConsumer: stopped accepting new messages')
+    }
+
+    if (this.#processing) {
+      this.logger.info('RabbitMQConsumer: waiting for in-flight job to finish...')
+      await new Promise<void>((resolve) => { this.#drainResolve = resolve })
+    }
+
+    this.logger.info('RabbitMQConsumer: drained')
   }
 }

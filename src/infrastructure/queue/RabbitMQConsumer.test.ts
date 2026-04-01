@@ -17,7 +17,8 @@ function makeMessage(payload: unknown) {
 
 const makeChannel = () => ({
   prefetch: vi.fn().mockResolvedValue(undefined),
-  consume:  vi.fn().mockResolvedValue(undefined),
+  consume:  vi.fn().mockResolvedValue({ consumerTag: 'test-tag' }),
+  cancel:   vi.fn().mockResolvedValue(undefined),
   ack:      vi.fn(),
   nack:     vi.fn(),
 })
@@ -99,5 +100,38 @@ describe('RabbitMQConsumer', () => {
 
     expect(channel.ack).not.toHaveBeenCalled()
     expect(channel.nack).not.toHaveBeenCalled()
+  })
+
+  it('stop() cancels the consumer on the channel', async () => {
+    await consumer.start()
+
+    await consumer.stop()
+
+    expect(channel.cancel).toHaveBeenCalledWith('test-tag')
+  })
+
+  it('stop() waits for in-flight job to finish before resolving', async () => {
+    let resolveJob: () => void
+    useCase.execute.mockReturnValue(new Promise(r => { resolveJob = () => r(ok(undefined)) }))
+
+    await consumer.start()
+    const handler = channel.consume.mock.calls[0][1]
+
+    // Start processing a job (don't await — it's in-flight)
+    const jobPromise = handler(makeMessage({ jobId: 'slow-job' }))
+
+    // stop() should not resolve until the job finishes
+    let stopped = false
+    const stopPromise = consumer.stop().then(() => { stopped = true })
+
+    // Job is still processing
+    expect(stopped).toBe(false)
+
+    // Finish the job
+    resolveJob!()
+    await jobPromise
+    await stopPromise
+
+    expect(stopped).toBe(true)
   })
 })
