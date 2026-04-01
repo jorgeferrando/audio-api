@@ -12,9 +12,10 @@ export class MinioFileStorage implements IFileStorage {
     private readonly logger: ILogger,
   ) {}
 
-  async upload(key: string, content: Buffer, contentType: string): Promise<Result<void, StorageError>> {
+  async upload(key: string, content: Buffer | Readable, contentType: string, size?: number): Promise<Result<void, StorageError>> {
     try {
-      await this.client.putObject(this.bucket, key, content, content.length, { 'Content-Type': contentType })
+      const len = Buffer.isBuffer(content) ? content.length : size
+      await this.client.putObject(this.bucket, key, content, len, { 'Content-Type': contentType })
       return ok(undefined)
     } catch (e) {
       this.logger.error('MinioFileStorage.upload failed', { error: e, key })

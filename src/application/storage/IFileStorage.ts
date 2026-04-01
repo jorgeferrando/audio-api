@@ -11,7 +11,7 @@ import type { StorageError } from '@shared/AppError'
  * physically live.
  */
 export interface IFileStorage {
-  upload(key: string, content: Buffer, contentType: string): Promise<Result<void, StorageError>>
+  upload(key: string, content: Buffer | Readable, contentType: string, size?: number): Promise<Result<void, StorageError>>
   download(key: string): Promise<Result<Readable, StorageError>>
   delete(key: string): Promise<Result<void, StorageError>>
 }
