@@ -1,9 +1,11 @@
-import { createReadStream } from 'fs'
+import path from 'path'
+import { randomUUID } from 'crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { StatusCodes } from 'http-status-codes'
 import { ValidationError } from '@shared/AppError'
 import { AudioEffect } from '@domain/job/ProcessingJob'
+import type { IFileStorage } from '@application/storage/IFileStorage'
 import type { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import type { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
 import type { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
@@ -17,6 +19,7 @@ export class AudioController {
     private readonly uploadAudio: UploadAudioUseCase,
     private readonly getAudioStatus: GetAudioStatusUseCase,
     private readonly downloadAudio: DownloadAudioUseCase,
+    private readonly fileStorage: IFileStorage,
   ) {}
 
   upload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -31,12 +34,21 @@ export class AudioController {
       return
     }
 
+    const ext = path.extname(req.file.originalname)
+    const storageKey = `originals/${randomUUID()}${ext}`
+
+    const uploadResult = await this.fileStorage.upload(storageKey, req.file.buffer, req.file.mimetype)
+    if (uploadResult.isErr()) {
+      next(uploadResult.error)
+      return
+    }
+
     const result = await this.uploadAudio.execute({
       filename:    req.file.originalname,
       mimeType:    req.file.mimetype,
       sizeInBytes: req.file.size,
       effect:      parsed.data.effect,
-      filePath:    req.file.path,
+      filePath:    storageKey,
     })
 
     if (result.isErr()) {
@@ -71,8 +83,15 @@ export class AudioController {
     }
 
     const { filePath, filename, mimeType } = result.value
+
+    const streamResult = await this.fileStorage.download(filePath)
+    if (streamResult.isErr()) {
+      next(streamResult.error)
+      return
+    }
+
     res.setHeader('Content-Disposition', `attachment; filename="processed_${filename}"`)
     res.setHeader('Content-Type', mimeType)
-    createReadStream(filePath).pipe(res)
+    streamResult.value.pipe(res)
   }
 }

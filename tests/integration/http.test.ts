@@ -3,6 +3,7 @@ import request from 'supertest'
 import express from 'express'
 import { AudioController } from '@presentation/controllers/AudioController'
 import type { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
+import type { IFileStorage } from '@application/storage/IFileStorage'
 import { audioRoutes } from '@presentation/routes/audioRoutes'
 import { healthRoutes } from '@presentation/routes/healthRoutes'
 import { errorHandler } from '@presentation/middlewares/errorHandler'
@@ -53,10 +54,16 @@ function buildApp(getStatusOverride?: ReturnType<typeof makeGetStatusUseCase>) {
   const upload    = makeUploadUseCase()
   const getStatus = getStatusOverride ?? makeGetStatusUseCase()
   const download = { execute: vi.fn().mockResolvedValue(err(new NotFoundError('AudioTrack', 'x'))) }
+  const fileStorage: IFileStorage = {
+    upload: vi.fn().mockResolvedValue(ok(undefined)),
+    download: vi.fn().mockResolvedValue(ok(undefined)),
+    delete: vi.fn().mockResolvedValue(ok(undefined)),
+  }
   const controller = new AudioController(
     upload as unknown as UploadAudioUseCase,
     getStatus as unknown as GetAudioStatusUseCase,
     download as unknown as DownloadAudioUseCase,
+    fileStorage,
   )
   const logger = makeLogger()
   const app = express()
