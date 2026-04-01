@@ -207,22 +207,28 @@ tests/
 
 ## Kubernetes
 
-The `k8s/` directory contains tested manifests that deploy the full stack (8 pods):
+The `k8s/` directory contains tested manifests that deploy the full stack (8 pods). Two scripts automate the entire workflow:
 
 ```bash
-# Build and push the image
+# One-button deploy: build, push, deploy all manifests, wait for pods
+bash scripts/k8s-deploy.sh
+
+# One-button production test: health + auth + upload + process + download
+bash scripts/k8s-test.sh
+```
+
+Both scripts are cross-platform (Windows git bash, Linux, Mac).
+
+Manual deploy steps if preferred:
+
+```bash
 docker build -t ghcr.io/jorgeferrando/audio-api:latest .
 docker push ghcr.io/jorgeferrando/audio-api:latest
-
-# Deploy to cluster
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/infra.yaml
 kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
 kubectl apply -f k8s/api-deployment.yaml -f k8s/api-service.yaml -f k8s/worker-deployment.yaml
-
-# Access the API
 kubectl -n audio-api port-forward svc/audio-api 8080:80
-curl http://localhost:8080/api/v1/health
 ```
 
 API and worker share the same Docker image but are deployed as **separate Deployments** with independent scaling and resource limits:
