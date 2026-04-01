@@ -206,7 +206,7 @@ tests/
 
 ```bash
 npm test                    # 140+ tests
-npm run test:coverage       # with coverage report (85%+ statements)
+npm run test:coverage       # with coverage report (85%+ statements, 90%+ branches)
 ```
 
 - **Unit tests:** co-located with implementation (`src/**/*.test.ts`)
