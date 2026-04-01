@@ -196,11 +196,24 @@ src/
     routes/         Audio routes, health routes
   shared/           Result, AppError, ILogger, ICacheService
 docs/
-  decisions/        Architecture Decision Records (7 ADRs)
-k8s/                Kubernetes manifests (Deployment, Service, ConfigMap, Secret, PVC)
+  decisions/        Architecture Decision Records (9 ADRs)
+k8s/                Kubernetes manifests
 tests/
   integration/      MongoDB repository + HTTP integration tests
 ```
+
+## Kubernetes
+
+The `k8s/` directory contains production-ready manifests. API and worker share the same Docker image but are deployed as **separate Deployments** with independent scaling and resource limits:
+
+| Deployment | Replicas | CPU | Memory | Entry point |
+|---|---|---|---|---|
+| `audio-api` | 2 | 100m - 500m | 128Mi - 512Mi | `src/index.ts` (default CMD) |
+| `audio-worker` | 2 | 250m - 1000m | 256Mi - 1Gi | `node dist/worker.js` (command override) |
+
+The worker gets more CPU because ffmpeg is CPU-intensive. Scaling is independent: you can run 2 API pods and 10 worker pods if processing demand requires it.
+
+Storage uses MinIO (S3-compatible) instead of a shared PVC — see [ADR 008](docs/decisions/008-minio-object-storage.md).
 
 ## Testing
 
