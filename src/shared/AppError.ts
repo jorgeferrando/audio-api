@@ -31,3 +31,9 @@ export class DatabaseError extends AppError {
     super(message, 'DATABASE_ERROR')
   }
 }
+
+export class StorageError extends AppError {
+  constructor(message: string) {
+    super(message, 'STORAGE_ERROR')
+  }
+}
