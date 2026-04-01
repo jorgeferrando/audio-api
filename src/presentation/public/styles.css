@@ -1,10 +1,51 @@
-/* ── Utilities ─────────────────────────────────── */
+/* ═══════════════════════════════════════════════════
+   TOKENS — design primitives
+   ═══════════════════════════════════════════════════ */
+
+:root {
+  /* Colors — oklch for perceptual uniformity */
+  --bg: oklch(13% 0.02 270deg);
+  --surface: oklch(17% 0.02 270deg);
+  --border: oklch(23% 0.02 270deg);
+  --text: oklch(91% 0.01 270deg);
+  --muted: oklch(53% 0.02 270deg);
+  --accent: oklch(55% 0.22 270deg);
+  --accent-hover: oklch(65% 0.2 270deg);
+  --success: oklch(65% 0.2 150deg);
+  --warning: oklch(75% 0.18 80deg);
+  --error: oklch(60% 0.22 25deg);
+
+  /* Spacing — fluid scale */
+  --space-xs: clamp(0.2rem, 0.5vw, 0.375rem);
+  --space-sm: clamp(0.375rem, 1vw, 0.625rem);
+  --space-md: clamp(0.75rem, 2vw, 1rem);
+  --space-lg: clamp(1rem, 3vw, 1.5rem);
+  --space-xl: clamp(1.5rem, 4vw, 2rem);
+
+  /* Typography — fluid */
+  --text-xs: clamp(0.65rem, 1vw, 0.75rem);
+  --text-sm: clamp(0.75rem, 1.2vw, 0.875rem);
+  --text-base: clamp(0.85rem, 1.5vw, 1rem);
+  --text-lg: clamp(1.2rem, 2.5vw, 1.5rem);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+}
+
+/* ═══════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════ */
 
 .hidden {
   display: none;
 }
 
-/* ── Reset ──────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════
+   RESET
+   ═══════════════════════════════════════════════════ */
 
 *,
 *::before,
@@ -14,55 +55,45 @@
   padding: 0;
 }
 
-/* ── Tokens ────────────────────────────────────── */
-
-:root {
-  --bg: #0f1117;
-  --surface: #1a1d27;
-  --border: #2a2d3a;
-  --text: #e4e4e7;
-  --muted: #71717a;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --radius: 12px;
-}
-
-/* ── Layout ────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════ */
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: var(--text-base);
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  min-block-size: 100vh;
   display: flex;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: var(--space-xl) var(--space-md);
 }
 
 .container {
-  width: 100%;
-  max-width: 560px;
+  inline-size: min(100%, 560px);
 }
+
+/* ═══════════════════════════════════════════════════
+   COMPONENTS
+   ═══════════════════════════════════════════════════ */
 
 /* ── Header ────────────────────────────────────── */
 
 .header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-block-end: var(--space-xl);
 
   & h1 {
-    font-size: 1.5rem;
+    font-size: var(--text-lg);
     font-weight: 600;
     letter-spacing: -0.025em;
   }
 
   & p {
     color: var(--muted);
-    font-size: 0.875rem;
-    margin-top: 0.25rem;
+    font-size: var(--text-sm);
+    margin-block-start: var(--space-xs);
   }
 }
 
@@ -71,16 +102,16 @@ body {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  margin-bottom: 1rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-block-end: var(--space-md);
 
   & h2 {
-    font-size: 0.8rem;
+    font-size: var(--text-xs);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--muted);
-    margin-bottom: 1rem;
+    margin-block-end: var(--space-md);
   }
 }
 
@@ -88,8 +119,8 @@ body {
 
 .dropzone {
   border: 2px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 2rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
@@ -97,7 +128,7 @@ body {
   &:hover,
   &.drag-over {
     border-color: var(--accent);
-    background: rgb(99 102 241 / 5%);
+    background: oklch(55% 0.22 270deg / 5%);
   }
 
   &.has-file {
@@ -106,28 +137,28 @@ body {
   }
 
   & .icon {
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
+    font-size: var(--text-lg);
+    margin-block-end: var(--space-sm);
   }
 
   & .text {
     color: var(--muted);
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
   }
 
   & .filename {
     color: var(--text);
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: var(--text-base);
   }
 }
 
 .demo-link {
   display: block;
   text-align: center;
-  margin-top: 0.75rem;
+  margin-block-start: var(--space-sm);
   color: var(--accent);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   cursor: pointer;
   text-decoration: underline;
 
@@ -139,30 +170,30 @@ body {
 /* ── Form fields ───────────────────────────────── */
 
 .field {
-  margin-top: 1rem;
+  margin-block-start: var(--space-md);
 
   & label {
     display: block;
-    font-size: 0.8rem;
+    font-size: var(--text-xs);
     color: var(--muted);
-    margin-bottom: 0.375rem;
+    margin-block-end: var(--space-xs);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
   & select {
-    width: 100%;
-    padding: 0.625rem 0.75rem;
+    inline-size: 100%;
+    padding: var(--space-sm) var(--space-sm);
     background: var(--bg);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.9rem;
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
     cursor: pointer;
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2371717a' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 0.75rem center;
+    background-position: right var(--space-sm) center;
 
     &:focus {
       outline: none;
@@ -172,14 +203,14 @@ body {
 }
 
 .btn {
-  width: 100%;
-  padding: 0.75rem;
-  margin-top: 1.25rem;
+  inline-size: 100%;
+  padding: var(--space-sm);
+  margin-block-start: var(--space-lg);
   background: var(--accent);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.2s;
@@ -196,22 +227,22 @@ body {
 
 .error-msg {
   color: var(--error);
-  font-size: 0.85rem;
-  margin-top: 0.75rem;
+  font-size: var(--text-sm);
+  margin-block-start: var(--space-sm);
   text-align: center;
 }
 
 /* ── Player ────────────────────────────────────── */
 
 .audio-section {
-  margin-top: 1rem;
+  margin-block-start: var(--space-md);
 
   & .label {
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     text-transform: uppercase;
     color: var(--muted);
     letter-spacing: 0.05em;
-    margin-bottom: 0.5rem;
+    margin-block-end: var(--space-sm);
   }
 }
 
@@ -222,15 +253,15 @@ audio {
 .player {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-sm);
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 0.625rem 0.875rem;
+  padding: var(--space-sm);
 
   & .play-btn {
-    width: 32px;
-    height: 32px;
+    inline-size: 32px;
+    block-size: 32px;
     flex-shrink: 0;
     background: var(--accent);
     border: none;
@@ -248,8 +279,8 @@ audio {
     }
 
     & svg {
-      width: 14px;
-      height: 14px;
+      inline-size: 14px;
+      block-size: 14px;
       fill: white;
     }
   }
@@ -258,13 +289,13 @@ audio {
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
+    gap: var(--space-sm);
+    min-inline-size: 0;
   }
 
   & .bar-wrap {
     flex: 1;
-    height: 6px;
+    block-size: 6px;
     background: var(--border);
     border-radius: 3px;
     cursor: pointer;
@@ -272,15 +303,15 @@ audio {
   }
 
   & .bar {
-    height: 100%;
+    block-size: 100%;
     background: var(--accent);
     border-radius: 3px;
-    width: 0%;
+    inline-size: 0%;
     pointer-events: none;
   }
 
   & .time {
-    font-size: 0.7rem;
+    font-size: var(--text-xs);
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
@@ -292,19 +323,19 @@ audio {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
+  padding-block: var(--space-sm);
 
   & + .status-row {
-    border-top: 1px solid var(--border);
+    border-block-start: 1px solid var(--border);
   }
 
   & .label {
     color: var(--muted);
-    font-size: 0.8rem;
+    font-size: var(--text-xs);
   }
 
   & .value {
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
     font-weight: 500;
   }
 }
@@ -313,35 +344,35 @@ audio {
 
 .badge {
   display: inline-block;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 
   &.pending {
-    background: rgb(245 158 11 / 15%);
+    background: oklch(75% 0.18 80deg / 15%);
     color: var(--warning);
   }
 
   &.processing {
-    background: rgb(99 102 241 / 15%);
+    background: oklch(55% 0.22 270deg / 15%);
     color: var(--accent-hover);
   }
 
   &.ready {
-    background: rgb(34 197 94 / 15%);
+    background: oklch(65% 0.2 150deg / 15%);
     color: var(--success);
   }
 
   &.completed {
-    background: rgb(34 197 94 / 15%);
+    background: oklch(65% 0.2 150deg / 15%);
     color: var(--success);
   }
 
   &.failed {
-    background: rgb(239 68 68 / 15%);
+    background: oklch(60% 0.22 25deg / 15%);
     color: var(--error);
   }
 }
@@ -349,16 +380,16 @@ audio {
 /* ── Download button ───────────────────────────── */
 
 .download-btn {
-  margin-top: 1rem;
+  margin-block-start: var(--space-md);
   background: var(--success);
   text-decoration: none;
   display: block;
   text-align: center;
-  padding: 0.75rem;
-  border-radius: 8px;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
   color: white;
   font-weight: 500;
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   transition: opacity 0.2s;
 
   &:hover {
@@ -370,14 +401,14 @@ audio {
 
 .spinner {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  inline-size: 14px;
+  block-size: 14px;
   border: 2px solid var(--border);
-  border-top-color: var(--accent);
+  border-block-start-color: var(--accent);
   border-radius: 50%;
   animation: spinner-spin 0.6s linear infinite;
   vertical-align: middle;
-  margin-right: 0.375rem;
+  margin-inline-end: var(--space-xs);
 }
 
 @keyframes spinner-spin {
@@ -386,22 +417,24 @@ audio {
   }
 }
 
-/* ── Track list ────────────────────────────────── */
+/* ═══════════════════════════════════════════════════
+   TRACK LIST
+   ═══════════════════════════════════════════════════ */
 
 .track-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 0.625rem;
-  margin-bottom: 0.25rem;
-  border-bottom: 1px solid var(--border);
+  padding-block-end: var(--space-sm);
+  margin-block-end: var(--space-xs);
+  border-block-end: 1px solid var(--border);
 }
 
 .track-toolbar-check {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
   color: var(--muted);
   cursor: pointer;
 
@@ -413,21 +446,21 @@ audio {
 
 .track-toolbar-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .toolbar-btn {
-  padding: 0.3rem 0.75rem;
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--error);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--error);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: background 0.2s;
 
   &:hover {
-    background: rgb(239 68 68 / 15%);
+    background: oklch(60% 0.22 25deg / 15%);
   }
 }
 
@@ -440,29 +473,29 @@ audio {
 .track-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.625rem 0;
+  gap: var(--space-sm);
+  padding-block: var(--space-sm);
 
   & + .track-item {
-    border-top: 1px solid var(--border);
+    border-block-start: 1px solid var(--border);
   }
 
   &.selected {
-    background: rgb(99 102 241 / 5%);
-    border-radius: 6px;
-    padding: 0.625rem 0.5rem;
+    background: oklch(55% 0.22 270deg / 5%);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm);
   }
 
   & .info {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
-    min-width: 0;
+    gap: var(--space-xs);
+    min-inline-size: 0;
     flex: 1;
   }
 
   & .name {
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -470,28 +503,28 @@ audio {
   }
 
   & .meta {
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     color: var(--muted);
     display: flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: var(--space-xs);
   }
 
   & .actions {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-sm);
     flex-shrink: 0;
   }
 
   & .action-btn {
-    width: 28px;
-    height: 28px;
+    inline-size: 28px;
+    block-size: 28px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--bg);
     color: var(--text);
     cursor: pointer;
-    font-size: 1rem;
+    font-size: var(--text-base);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -508,7 +541,7 @@ audio {
     }
 
     &.download {
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
     }
   }
 }
@@ -519,19 +552,19 @@ audio {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 1rem;
-  padding-top: 0.75rem;
-  margin-top: 0.5rem;
-  border-top: 1px solid var(--border);
+  gap: var(--space-md);
+  padding-block-start: var(--space-sm);
+  margin-block-start: var(--space-sm);
+  border-block-start: 1px solid var(--border);
 }
 
 .pagination-btn {
-  padding: 0.3rem 0.75rem;
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: border-color 0.2s;
 
@@ -546,6 +579,6 @@ audio {
 }
 
 .pagination-info {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
