@@ -4,8 +4,6 @@ RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 
-RUN mkdir -p uploads/originals uploads/processed
-
 COPY package.json package-lock.json ./
 RUN npm ci
 

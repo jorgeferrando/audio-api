@@ -1,7 +1,6 @@
-import fs from 'fs'
-import path from 'path'
 import dotenv from 'dotenv'
 import Redis from 'ioredis'
+import { Client as MinioClient } from 'minio'
 import { WinstonLogger } from '@infrastructure/logger/WinstonLogger'
 import { connectMongo, disconnectMongo } from '@infrastructure/db/mongoConnection'
 import { connectRabbitMQ, disconnectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
@@ -9,20 +8,23 @@ import { AudioTrackMongoRepository } from '@infrastructure/db/AudioTrackMongoRep
 import { ProcessingJobMongoRepository } from '@infrastructure/db/ProcessingJobMongoRepository'
 import { RedisCacheService } from '@infrastructure/cache/RedisCacheService'
 import { FfmpegAudioProcessor } from '@infrastructure/audio/FfmpegAudioProcessor'
+import { MinioFileStorage } from '@infrastructure/storage/MinioFileStorage'
 import { ProcessJobUseCase } from '@application/job/ProcessJobUseCase'
 import { RabbitMQConsumer } from '@infrastructure/queue/RabbitMQConsumer'
 
 dotenv.config()
 
-const MONGO_URI  = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/audio-api'
-const REDIS_URL  = process.env.REDIS_URL ?? 'redis://localhost:6379'
-const RABBIT_URL = process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672'
+const MONGO_URI       = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/audio-api'
+const REDIS_URL       = process.env.REDIS_URL ?? 'redis://localhost:6379'
+const RABBIT_URL      = process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672'
+const MINIO_ENDPOINT  = process.env.MINIO_ENDPOINT ?? 'localhost'
+const MINIO_PORT      = Number(process.env.MINIO_PORT ?? 9000)
+const MINIO_ACCESS    = process.env.MINIO_ACCESS_KEY ?? 'minioadmin'
+const MINIO_SECRET    = process.env.MINIO_SECRET_KEY ?? 'minioadmin'
+const MINIO_BUCKET    = process.env.MINIO_BUCKET ?? 'audio-api'
 
 async function main(): Promise<void> {
   const logger = new WinstonLogger(process.env.NODE_ENV ?? 'development')
-
-  // ── Ensure upload directories exist ───────────────────────────────────
-  fs.mkdirSync(path.resolve(process.cwd(), 'uploads', 'processed'), { recursive: true })
 
   // ── Infrastructure ────────────────────────────────────────────────────
   await connectMongo(MONGO_URI, logger)
@@ -30,6 +32,16 @@ async function main(): Promise<void> {
   const redis      = new Redis(REDIS_URL)
   const cache      = new RedisCacheService(redis)
   const rabbitConn = await connectRabbitMQ(RABBIT_URL, logger)
+
+  const minioClient = new MinioClient({
+    endPoint: MINIO_ENDPOINT, port: MINIO_PORT,
+    useSSL: false, accessKey: MINIO_ACCESS, secretKey: MINIO_SECRET,
+  })
+  const bucketExists = await minioClient.bucketExists(MINIO_BUCKET)
+  if (!bucketExists) await minioClient.makeBucket(MINIO_BUCKET)
+  logger.info('MinIO connected', { bucket: MINIO_BUCKET })
+
+  const fileStorage = new MinioFileStorage(minioClient, MINIO_BUCKET, logger)
 
   // ── Repositories ──────────────────────────────────────────────────────
   const audioRepo = new AudioTrackMongoRepository(logger)
@@ -39,7 +51,7 @@ async function main(): Promise<void> {
   const audioProcessor = new FfmpegAudioProcessor(logger)
 
   // ── Use case ──────────────────────────────────────────────────────────
-  const processJob = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, cache, logger)
+  const processJob = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, fileStorage, cache, logger)
 
   // ── Consumer ──────────────────────────────────────────────────────────
   const consumer = new RabbitMQConsumer(rabbitConn.channel, processJob, logger)

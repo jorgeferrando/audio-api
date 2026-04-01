@@ -1,9 +1,8 @@
-import fs from 'fs'
 import { Readable } from 'stream'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('fs', async () => {
-  const actual = await vi.importActual<typeof import('fs')>('fs')
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     default: {
