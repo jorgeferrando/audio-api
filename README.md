@@ -125,22 +125,22 @@ Returns the processed audio file as a binary stream. Only available when `status
 - Node.js >= 22
 - Docker and Docker Compose
 
-### Setup
+### Quick Start (Docker Compose)
 
 ```bash
-# Clone and install
 git clone https://github.com/jorgeferrando/audio-api.git
 cd audio-api
-npm install
 
-# Start full stack
-docker compose up
+# One-button deploy + test
+bash scripts/docker-deploy.sh    # Build and start all services
+bash scripts/docker-test.sh      # Run production smoke tests
 
 # Open the web UI
 open http://localhost:3000
 ```
 
 The web UI includes a demo tone generator — no audio files needed to test.
+No registry login required — everything runs locally.
 
 ### Development (without Docker for API/worker)
 
