@@ -6,6 +6,12 @@ import { AudioEffect } from '@domain/job/ProcessingJob'
 import type { IAudioProcessor, AudioProcessingResult } from '@application/job/IAudioProcessor'
 
 /**
+ * Note: fluent-ffmpeg is deprecated (unmaintained, no security issues).
+ * It wraps child_process.spawn internally — the event loop is NOT blocked.
+ * If fluent-ffmpeg becomes unusable, replace with direct child_process.spawn
+ * calls. The IAudioProcessor port isolates this implementation from the rest
+ * of the codebase, making the migration a single-file change.
+ *
  * Maps each AudioEffect to an ffmpeg audio filter string.
  * These are real ffmpeg filters — they produce audible changes.
  */
