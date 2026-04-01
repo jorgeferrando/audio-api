@@ -3,15 +3,20 @@ import { listTracks, deleteTrack, deleteManyTracks, downloadUrl } from './api.js
 const container = document.getElementById('trackList')
 const listSection = document.getElementById('trackListSection')
 
+const PAGE_SIZE = 10
 let selected = new Set()
 let currentTracks = []
+let total = 0
+let currentOffset = 0
 
 export async function refreshTrackList() {
   try {
-    currentTracks = await listTracks()
+    const data = await listTracks({ limit: PAGE_SIZE, offset: currentOffset })
+    currentTracks = data.items
+    total = data.total
     selected.clear()
     render()
-    if (currentTracks.length) listSection.classList.remove('hidden')
+    if (total > 0) listSection.classList.remove('hidden')
     else listSection.classList.add('hidden')
   } catch {
     listSection.classList.add('hidden')
@@ -20,12 +25,14 @@ export async function refreshTrackList() {
 
 function render() {
   const hasSelection = selected.size > 0
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const currentPage = Math.floor(currentOffset / PAGE_SIZE) + 1
 
   container.innerHTML = `
     <div class="track-toolbar">
       <label class="track-toolbar-check">
         <input type="checkbox" id="selectAll" ${selected.size === currentTracks.length && currentTracks.length ? 'checked' : ''}>
-        <span>${hasSelection ? selected.size + ' selected' : currentTracks.length + ' tracks'}</span>
+        <span>${hasSelection ? selected.size + ' selected' : total + ' tracks'}</span>
       </label>
       ${hasSelection ? `
         <div class="track-toolbar-actions">
@@ -51,19 +58,25 @@ function render() {
         </div>
       </div>
     `).join('')}
+    ${totalPages > 1 ? `
+      <div class="pagination">
+        <button class="pagination-btn" id="prevPage" ${currentPage <= 1 ? 'disabled' : ''}>&#8592; Prev</button>
+        <span class="pagination-info">${currentPage} / ${totalPages}</span>
+        <button class="pagination-btn" id="nextPage" ${currentPage >= totalPages ? 'disabled' : ''}>Next &#8594;</button>
+      </div>
+    ` : ''}
   `
 
-  // Select all
+  bindEvents()
+}
+
+function bindEvents() {
   document.getElementById('selectAll')?.addEventListener('change', (e) => {
-    if (e.target.checked) {
-      currentTracks.forEach(t => selected.add(t.audioTrackId))
-    } else {
-      selected.clear()
-    }
+    if (e.target.checked) currentTracks.forEach(t => selected.add(t.audioTrackId))
+    else selected.clear()
     render()
   })
 
-  // Individual checkboxes
   container.querySelectorAll('.track-check').forEach(cb => {
     cb.addEventListener('change', () => {
       if (cb.checked) selected.add(cb.dataset.id)
@@ -72,7 +85,6 @@ function render() {
     })
   })
 
-  // Bulk delete
   container.querySelector('.delete-selected')?.addEventListener('click', async () => {
     const ids = [...selected]
     animateRemoval(ids)
@@ -80,14 +92,22 @@ function render() {
     await refreshTrackList()
   })
 
-  // Single delete (no confirm — instant with animation)
   container.querySelectorAll('.action-btn.delete').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.dataset.id
-      animateRemoval([id])
-      await deleteTrack(id)
+      animateRemoval([btn.dataset.id])
+      await deleteTrack(btn.dataset.id)
       await refreshTrackList()
     })
+  })
+
+  document.getElementById('prevPage')?.addEventListener('click', () => {
+    currentOffset = Math.max(0, currentOffset - PAGE_SIZE)
+    refreshTrackList()
+  })
+
+  document.getElementById('nextPage')?.addEventListener('click', () => {
+    currentOffset += PAGE_SIZE
+    refreshTrackList()
   })
 }
 

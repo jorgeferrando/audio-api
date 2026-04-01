@@ -90,6 +90,50 @@ describe('AudioTrackMongoRepository', () => {
       expect(result.value!.status).toBe(AudioTrackStatus.PROCESSING)
     })
 
+    it('deletes a track by id', async () => {
+      const track = makeTrack()
+      await repo.save(track)
+
+      await repo.deleteById(track.id)
+
+      const result = await repo.findById(track.id)
+      expect(result.isOk()).toBe(true)
+      if (!result.isOk()) return
+      expect(result.value).toBeNull()
+    })
+  })
+
+  describe('findAll()', () => {
+    it('returns all tracks with total count', async () => {
+      const t1 = makeTrack()
+      const t2 = makeTrack()
+      await repo.save(t1)
+      await repo.save(t2)
+
+      const result = await repo.findAll()
+
+      expect(result.isOk()).toBe(true)
+      if (!result.isOk()) return
+      expect(result.value.items).toHaveLength(2)
+      expect(result.value.total).toBe(2)
+    })
+
+    it('respects limit and offset', async () => {
+      const t1 = makeTrack()
+      const t2 = makeTrack()
+      const t3 = makeTrack()
+      await repo.save(t1)
+      await repo.save(t2)
+      await repo.save(t3)
+
+      const result = await repo.findAll({ limit: 2, offset: 1 })
+
+      expect(result.isOk()).toBe(true)
+      if (!result.isOk()) return
+      expect(result.value.items).toHaveLength(2)
+      expect(result.value.total).toBe(3)
+    })
+
     it('persists durationSeconds after markAsReady', async () => {
       const track = makeTrack()
       track.markAsProcessing()

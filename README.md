@@ -47,7 +47,7 @@ infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, Winston
 - Port & Adapter for all infrastructure (repositories, cache, queue, audio processor, file storage)
 - Saga compensation for multi-entity consistency in async processing
 - API key authentication on protected routes
-- TDD with 167+ tests (unit + integration + contract)
+- TDD with 174+ tests (unit + integration + contract)
 
 Architecture decisions are documented in [`docs/decisions/`](docs/decisions/).
 
@@ -55,10 +55,15 @@ Architecture decisions are documented in [`docs/decisions/`](docs/decisions/).
 
 | Method | Path                       | Auth | Description              | Status |
 |--------|----------------------------|------|--------------------------|--------|
+| GET    | /api/v1/audio              | Yes  | List tracks (paginated)  | 200    |
 | POST   | /api/v1/audio              | Yes  | Upload audio + process   | 202    |
 | GET    | /api/v1/audio/:id          | Yes  | Get audio track status   | 200    |
 | GET    | /api/v1/audio/:id/download | Yes  | Download processed audio | 200    |
+| DELETE | /api/v1/audio/:id          | Yes  | Delete track + files     | 204    |
 | GET    | /api/v1/health             | No   | Health check             | 200    |
+| GET    | /api/v1/health/ready       | No   | Readiness probe          | 200    |
+
+`GET /api/v1/audio` supports pagination: `?limit=50&offset=0` (default). Max limit: 100.
 
 Authentication: send `x-api-key` header. Set `API_KEY` in `.env` to enable (disabled by default in dev).
 
@@ -199,7 +204,7 @@ src/
     routes/         Audio routes, health routes
   shared/           Result, AppError, ILogger, ICacheService
 docs/
-  decisions/        Architecture Decision Records (10 ADRs)
+  decisions/        Architecture Decision Records (11 ADRs)
 k8s/                Kubernetes manifests
 tests/
   integration/      MongoDB repository + HTTP integration tests
@@ -251,7 +256,7 @@ Storage uses MinIO (S3-compatible) instead of a shared PVC — see [ADR 008](doc
 ## Testing
 
 ```bash
-npm test                    # 167+ tests
+npm test                    # 174+ tests
 npm run test:coverage       # with coverage report (85%+ statements, 90%+ branches)
 ```
 

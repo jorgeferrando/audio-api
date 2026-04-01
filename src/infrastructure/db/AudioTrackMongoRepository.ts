@@ -53,10 +53,15 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
     }
   }
 
-  async findAll(): Promise<Result<AudioTrack[], DatabaseError>> {
+  async findAll(options?: { limit?: number; offset?: number }): Promise<Result<{ items: AudioTrack[]; total: number }, DatabaseError>> {
     try {
-      const docs = await AudioTrackModel.find().sort({ createdAt: -1 }).lean()
-      return ok(docs.map(doc => AudioTrack.reconstitute({
+      const limit = options?.limit ?? 50
+      const offset = options?.offset ?? 0
+      const [docs, total] = await Promise.all([
+        AudioTrackModel.find().sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+        AudioTrackModel.countDocuments(),
+      ])
+      const items = docs.map(doc => AudioTrack.reconstitute({
         id:                doc._id,
         filename:          doc.filename,
         mimeType:          doc.mimeType,
@@ -66,7 +71,8 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
         status:            doc.status,
         durationSeconds:   doc.durationSeconds,
         createdAt:         doc.createdAt,
-      })))
+      }))
+      return ok({ items, total })
     } catch (e) {
       this.logger.error('AudioTrackMongoRepository.findAll failed', { error: e })
       return err(new DatabaseError('Failed to list AudioTracks'))

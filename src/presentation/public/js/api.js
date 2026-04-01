@@ -17,8 +17,9 @@ export async function getStatus(trackId) {
   return res.json()
 }
 
-export async function listTracks() {
-  const res = await fetch(BASE, { headers })
+export async function listTracks({ limit = 50, offset = 0 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const res = await fetch(`${BASE}?${params}`, { headers })
   if (!res.ok) throw await res.json()
   return res.json()
 }

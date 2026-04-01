@@ -105,8 +105,11 @@ export class AudioController {
     streamResult.value.pipe(res)
   }
 
-  list = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const result = await this.listAudioTracks.execute()
+  list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const limit  = Number(req.query.limit)  || undefined
+    const offset = Number(req.query.offset) || undefined
+
+    const result = await this.listAudioTracks.execute({ limit, offset })
 
     if (result.isErr()) {
       next(result.error)
