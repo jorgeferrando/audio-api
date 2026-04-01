@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="container">
-    <header>
+    <header class="header">
       <h1>Audio Processing API</h1>
       <p>Upload an audio file, apply an effect, download the result</p>
     </header>
@@ -18,24 +18,23 @@
     <div class="card">
       <h2>Upload</h2>
       <div class="dropzone" id="dropzone">
-        <div class="dropzone-icon" id="dropzone-icon">&#127925;</div>
-        <div class="dropzone-text" id="dropzone-text">Drop an audio file here or click to browse</div>
-        <div class="dropzone-filename" id="dropzone-filename"></div>
+        <div class="icon" id="dropzone-icon">&#127925;</div>
+        <div class="text" id="dropzone-text">Drop an audio file here or click to browse</div>
+        <div class="filename" id="dropzone-filename"></div>
       </div>
       <input type="file" id="fileInput" accept="audio/*" hidden>
       <span class="demo-link" id="demoLink">or use a demo tone (3s sine wave)</span>
 
-      <!-- Original audio preview -->
       <div class="audio-section" id="originalSection" style="display:none">
-        <div class="audio-label">Original</div>
+        <div class="label">Original</div>
         <audio id="originalPlayer"></audio>
         <div class="player" data-for="originalPlayer">
-          <button class="player-btn play-btn" type="button" aria-label="Play">
+          <button class="play-btn" type="button" aria-label="Play">
             <svg viewBox="0 0 16 16"><polygon class="icon-play" points="4,2 14,8 4,14"/><g class="icon-pause" style="display:none"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></g></svg>
           </button>
-          <div class="player-track">
-            <div class="player-bar-wrap"><div class="player-bar"></div></div>
-            <div class="player-time">0:00 / 0:00</div>
+          <div class="track">
+            <div class="bar-wrap"><div class="bar"></div></div>
+            <div class="time">0:00 / 0:00</div>
           </div>
         </div>
       </div>
@@ -51,34 +50,39 @@
         </select>
       </div>
 
-      <button id="uploadBtn" disabled>Upload & Process</button>
+      <button class="btn" id="uploadBtn" disabled>Upload & Process</button>
       <div class="error-msg" id="uploadError"></div>
     </div>
 
     <!-- Result -->
-    <div class="card" id="result">
+    <div class="card" id="result" style="display:none">
       <h2>Result</h2>
       <div id="statusRows"></div>
 
-      <!-- Processed audio preview -->
       <div class="audio-section" id="processedSection" style="display:none">
-        <div class="audio-label">Processed</div>
+        <div class="label">Processed</div>
         <audio id="processedPlayer"></audio>
         <div class="player" data-for="processedPlayer">
-          <button class="player-btn play-btn" type="button" aria-label="Play">
+          <button class="play-btn" type="button" aria-label="Play">
             <svg viewBox="0 0 16 16"><polygon class="icon-play" points="4,2 14,8 4,14"/><g class="icon-pause" style="display:none"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></g></svg>
           </button>
-          <div class="player-track">
-            <div class="player-bar-wrap"><div class="player-bar"></div></div>
-            <div class="player-time">0:00 / 0:00</div>
+          <div class="track">
+            <div class="bar-wrap"><div class="bar"></div></div>
+            <div class="time">0:00 / 0:00</div>
           </div>
         </div>
       </div>
 
       <a class="download-btn" id="downloadLink" style="display:none">Download Processed Audio</a>
     </div>
+
+    <!-- Track list -->
+    <div class="card" id="trackListSection" style="display:none">
+      <h2>Tracks</h2>
+      <div id="trackList"></div>
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
