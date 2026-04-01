@@ -221,6 +221,15 @@ document.querySelectorAll('.player').forEach(player => {
   const barWrap = player.querySelector('.player-bar-wrap')
   const time    = player.querySelector('.player-time')
 
+  let animFrame = null
+
+  function updateProgress() {
+    const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0
+    bar.style.width = pct + '%'
+    time.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration)
+    if (!audio.paused) animFrame = requestAnimationFrame(updateProgress)
+  }
+
   btn.addEventListener('click', () => {
     if (audio.paused) { audio.play() } else { audio.pause() }
   })
@@ -228,16 +237,12 @@ document.querySelectorAll('.player').forEach(player => {
   audio.addEventListener('play', () => {
     iconPlay.style.display = 'none'
     iconPause.style.display = 'inline'
+    animFrame = requestAnimationFrame(updateProgress)
   })
   audio.addEventListener('pause', () => {
     iconPlay.style.display = 'inline'
     iconPause.style.display = 'none'
-  })
-
-  audio.addEventListener('timeupdate', () => {
-    const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0
-    bar.style.width = pct + '%'
-    time.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration)
+    if (animFrame) cancelAnimationFrame(animFrame)
   })
 
   audio.addEventListener('loadedmetadata', () => {
@@ -247,6 +252,7 @@ document.querySelectorAll('.player').forEach(player => {
   audio.addEventListener('ended', () => {
     iconPlay.style.display = 'inline'
     iconPause.style.display = 'none'
+    if (animFrame) cancelAnimationFrame(animFrame)
     bar.style.width = '0%'
   })
 

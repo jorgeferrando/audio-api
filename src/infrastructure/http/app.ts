@@ -47,6 +47,7 @@ export function createApp(
   app.get('/', (_req, res) => {
     res.type('html').send(indexWithKey)
   })
+  app.use(express.static(publicDir))
 
   // ── Routes ──────────────────────────────────────────────────────────────
   const v1 = Router()
