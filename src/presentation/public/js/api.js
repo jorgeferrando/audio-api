@@ -28,6 +28,15 @@ export async function deleteTrack(trackId) {
   if (!res.ok) throw await res.json()
 }
 
+export async function deleteManyTracks(trackIds) {
+  await Promise.all(trackIds.map(id => deleteTrack(id)))
+}
+
 export function downloadUrl(trackId) {
   return `${BASE}/${trackId}/download`
+}
+
+export function downloadUrlWithAuth(trackId) {
+  const params = API_KEY ? `?key=${API_KEY}` : ''
+  return `${BASE}/${trackId}/download${params}`
 }

@@ -206,13 +206,41 @@ audio { display: none; }
 
 /* ── Track list ────────────────────────────────── */
 
-.track-item {
+.track-toolbar {
   display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 0.625rem; margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.track-toolbar-check {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.8rem; color: var(--muted); cursor: pointer;
+
+  & input { accent-color: var(--accent); cursor: pointer; }
+}
+
+.track-toolbar-actions { display: flex; gap: 0.5rem; }
+
+.toolbar-btn {
+  padding: 0.3rem 0.75rem; border: 1px solid var(--error);
+  border-radius: 6px; background: transparent; color: var(--error);
+  font-size: 0.75rem; cursor: pointer; transition: background 0.2s;
+
+  &:hover { background: rgba(239, 68, 68, 0.15); }
+}
+
+.track-check {
+  accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+}
+
+.track-item {
+  display: flex; align-items: center; gap: 0.75rem;
   padding: 0.625rem 0;
 
   & + .track-item { border-top: 1px solid var(--border); }
+  &.selected { background: rgba(99, 102, 241, 0.05); border-radius: 6px; padding: 0.625rem 0.5rem; }
 
-  & .info { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+  & .info { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; flex: 1; }
   & .name {
     font-size: 0.875rem; font-weight: 500;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
