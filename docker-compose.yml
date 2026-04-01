@@ -13,6 +13,7 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET=audio-api
+      - API_KEY=dev-api-key-2024
     depends_on:
       mongodb:
         condition: service_healthy
