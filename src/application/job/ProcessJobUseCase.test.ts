@@ -56,7 +56,7 @@ function makeJob(audioTrackId: string): ProcessingJob {
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 const makeAudioRepo = (): IAudioTrackRepository => ({
-  save: vi.fn().mockResolvedValue(ok(undefined)),
+  save: vi.fn().mockResolvedValue(ok(undefined)), findAll: vi.fn(), deleteById: vi.fn(),
   findById: vi.fn(),
 })
 

@@ -14,9 +14,11 @@ export function audioRoutes(controller: AudioController, validateAudio?: Request
   if (validateAudio) uploadChain.push(validateAudio)
   uploadChain.push(controller.upload)
 
+  router.get('/',                controller.list)
   router.post('/', ...uploadChain)
   router.get('/:id',            controller.getStatus)
   router.get('/:id/download',   controller.download)
+  router.delete('/:id',         controller.remove)
 
   return router
 }

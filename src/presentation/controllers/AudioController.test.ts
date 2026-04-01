@@ -20,6 +20,8 @@ import { JobStatus } from '@domain/job/ProcessingJob'
 import type { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import type { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
 import type { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
+import type { ListAudioTracksUseCase } from '@application/audio/ListAudioTracksUseCase'
+import type { DeleteAudioUseCase } from '@application/audio/DeleteAudioUseCase'
 import type { IFileStorage } from '@application/storage/IFileStorage'
 import { ok, err } from '@shared/Result'
 import { ValidationError, AppError, StorageError } from '@shared/AppError'
@@ -42,6 +44,14 @@ const makeGetStatusUseCase = () => ({
 
 const makeDownloadUseCase = () => ({
   execute: vi.fn().mockResolvedValue(err(new AppError('Audio is not ready for download', 'NOT_READY'))),
+})
+
+const makeListUseCase = () => ({
+  execute: vi.fn().mockResolvedValue(ok([])),
+})
+
+const makeDeleteUseCase = () => ({
+  execute: vi.fn().mockResolvedValue(ok(undefined)),
 })
 
 const makeFileStorage = (): IFileStorage => ({
@@ -83,6 +93,8 @@ describe('AudioController', () => {
       uploadUseCase as unknown as UploadAudioUseCase,
       getStatusUseCase as unknown as GetAudioStatusUseCase,
       downloadUseCase as unknown as DownloadAudioUseCase,
+      makeListUseCase() as unknown as ListAudioTracksUseCase,
+      makeDeleteUseCase() as unknown as DeleteAudioUseCase,
       fileStorage,
     )
     next = vi.fn()

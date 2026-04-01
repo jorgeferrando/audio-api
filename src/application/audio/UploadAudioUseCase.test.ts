@@ -11,7 +11,7 @@ import { DatabaseError, AppError } from '@shared/AppError'
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 const makeAudioRepo = (): IAudioTrackRepository => ({
-  save: vi.fn().mockResolvedValue(ok(undefined)),
+  save: vi.fn().mockResolvedValue(ok(undefined)), findAll: vi.fn(), deleteById: vi.fn(),
   findById: vi.fn(),
 })
 

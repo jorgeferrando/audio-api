@@ -52,4 +52,34 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
       return err(new DatabaseError('Failed to find AudioTrack'))
     }
   }
+
+  async findAll(): Promise<Result<AudioTrack[], DatabaseError>> {
+    try {
+      const docs = await AudioTrackModel.find().sort({ createdAt: -1 }).lean()
+      return ok(docs.map(doc => AudioTrack.reconstitute({
+        id:                doc._id,
+        filename:          doc.filename,
+        mimeType:          doc.mimeType,
+        sizeInBytes:       doc.sizeInBytes,
+        filePath:          doc.filePath,
+        processedFilePath: doc.processedFilePath,
+        status:            doc.status,
+        durationSeconds:   doc.durationSeconds,
+        createdAt:         doc.createdAt,
+      })))
+    } catch (e) {
+      this.logger.error('AudioTrackMongoRepository.findAll failed', { error: e })
+      return err(new DatabaseError('Failed to list AudioTracks'))
+    }
+  }
+
+  async deleteById(id: string): Promise<Result<void, DatabaseError>> {
+    try {
+      await AudioTrackModel.findByIdAndDelete(id)
+      return ok(undefined)
+    } catch (e) {
+      this.logger.error('AudioTrackMongoRepository.deleteById failed', { error: e, id })
+      return err(new DatabaseError('Failed to delete AudioTrack'))
+    }
+  }
 }

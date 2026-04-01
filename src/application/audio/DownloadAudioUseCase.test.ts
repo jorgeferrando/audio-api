@@ -6,7 +6,7 @@ import { ok, err } from '@shared/Result'
 import { DatabaseError } from '@shared/AppError'
 
 const makeAudioRepo = (): IAudioTrackRepository => ({
-  save: vi.fn(),
+  save: vi.fn(), findAll: vi.fn(), deleteById: vi.fn(),
   findById: vi.fn(),
 })
 

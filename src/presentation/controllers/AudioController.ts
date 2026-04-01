@@ -10,6 +10,8 @@ import type { IFileStorage } from '@application/storage/IFileStorage'
 import type { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import type { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
 import type { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
+import type { ListAudioTracksUseCase } from '@application/audio/ListAudioTracksUseCase'
+import type { DeleteAudioUseCase } from '@application/audio/DeleteAudioUseCase'
 
 const effectSchema = z.object({
   effect: z.nativeEnum(AudioEffect, { message: 'invalid audio effect' }),
@@ -20,6 +22,8 @@ export class AudioController {
     private readonly uploadAudio: UploadAudioUseCase,
     private readonly getAudioStatus: GetAudioStatusUseCase,
     private readonly downloadAudio: DownloadAudioUseCase,
+    private readonly listAudioTracks: ListAudioTracksUseCase,
+    private readonly deleteAudio: DeleteAudioUseCase,
     private readonly fileStorage: IFileStorage,
   ) {}
 
@@ -99,6 +103,30 @@ export class AudioController {
     res.setHeader('Content-Disposition', `attachment; filename="processed_${filename}"`)
     res.setHeader('Content-Type', mimeType)
     streamResult.value.pipe(res)
+  }
+
+  list = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const result = await this.listAudioTracks.execute()
+
+    if (result.isErr()) {
+      next(result.error)
+      return
+    }
+
+    res.status(StatusCodes.OK).json(result.value)
+  }
+
+  remove = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const result = await this.deleteAudio.execute({
+      audioTrackId: req.params.id,
+    })
+
+    if (result.isErr()) {
+      next(result.error)
+      return
+    }
+
+    res.status(StatusCodes.NO_CONTENT).end()
   }
 
   private cleanupTempFile(filePath: string): void {

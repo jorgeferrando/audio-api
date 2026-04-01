@@ -12,6 +12,8 @@ import { MinioFileStorage } from '@infrastructure/storage/MinioFileStorage'
 import { UploadAudioUseCase } from '@application/audio/UploadAudioUseCase'
 import { GetAudioStatusUseCase } from '@application/audio/GetAudioStatusUseCase'
 import { DownloadAudioUseCase } from '@application/audio/DownloadAudioUseCase'
+import { ListAudioTracksUseCase } from '@application/audio/ListAudioTracksUseCase'
+import { DeleteAudioUseCase } from '@application/audio/DeleteAudioUseCase'
 import { AudioController } from '@presentation/controllers/AudioController'
 import { validateAudioMiddleware } from '@presentation/middlewares/validateAudio'
 import { validateAudioContent } from '@infrastructure/audio/validateAudio'
@@ -58,9 +60,13 @@ async function main(): Promise<void> {
   const uploadAudio    = new UploadAudioUseCase(audioRepo, jobRepo, publisher, logger)
   const getAudioStatus = new GetAudioStatusUseCase(audioRepo, jobRepo, cache)
   const downloadAudio  = new DownloadAudioUseCase(audioRepo)
+  const listAudio      = new ListAudioTracksUseCase(audioRepo)
+  const deleteAudio    = new DeleteAudioUseCase(audioRepo, fileStorage, logger)
 
   // ── HTTP ──────────────────────────────────────────────────────────────
-  const controller = new AudioController(uploadAudio, getAudioStatus, downloadAudio, fileStorage)
+  const controller = new AudioController(
+    uploadAudio, getAudioStatus, downloadAudio, listAudio, deleteAudio, fileStorage,
+  )
 
   const healthChecks = [
     { name: 'mongodb', check: async () => (await import('mongoose')).default.connection.readyState === 1 },

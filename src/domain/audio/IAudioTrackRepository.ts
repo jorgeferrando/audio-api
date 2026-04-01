@@ -17,4 +17,6 @@ import type { AudioTrack } from './AudioTrack'
 export interface IAudioTrackRepository {
   save(audio: AudioTrack): Promise<Result<void, DatabaseError>>
   findById(id: string): Promise<Result<AudioTrack | null, DatabaseError>>
+  findAll(): Promise<Result<AudioTrack[], DatabaseError>>
+  deleteById(id: string): Promise<Result<void, DatabaseError>>
 }
