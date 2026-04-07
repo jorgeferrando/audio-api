@@ -29,11 +29,11 @@
       Upload an audio file, apply an effect, download the processed result.
     </p>
     <div class="stats">
-      <div class="stat"><div class="number">176+</div><div class="label">Tests</div></div>
-      <div class="stat"><div class="number">91%</div><div class="label">Branch Coverage</div></div>
-      <div class="stat"><div class="number">11</div><div class="label">ADRs</div></div>
+      <div class="stat"><div class="number">245+</div><div class="label">Tests</div></div>
+      <div class="stat"><div class="number">90%</div><div class="label">Branch Coverage</div></div>
+      <div class="stat"><div class="number">12</div><div class="label">ADRs</div></div>
       <div class="stat"><div class="number">7</div><div class="label">Docker Services</div></div>
-      <div class="stat"><div class="number">114</div><div class="label">Commits</div></div>
+      <div class="stat"><div class="number">129</div><div class="label">Commits</div></div>
     </div>
   </div>
 
@@ -49,16 +49,17 @@
 
     <div class="card">
       <pre><code>presentation/     Controllers, routes, middlewares (auth, validation, error handling)
-application/      Use cases, DTOs, application ports (IFileStorage, IJobPublisher)
+application/      Use cases, DTOs, application ports (IFileStorage, IJobPublisher, ITempFileManager)
 domain/           Entities (AudioTrack, ProcessingJob), repository ports
-infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, nginx, Winston</code></pre>
+infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, nginx, Winston, config</code></pre>
     </div>
 
     <h3>Request Flow</h3>
     <div class="card">
-      <pre><code>Upload:   Client ──► nginx ──► multer ──► ffprobe (validate) ──► MinIO (stream) ──► MongoDB + RabbitMQ
-Worker:   RabbitMQ ──► Consumer ──► MinIO (download) ──► ffmpeg ──► MinIO (upload) ──► MongoDB + Redis
+      <pre><code>Upload:   Client ──► nginx ──► busboy (stream + magic bytes) ──► MinIO ──► MongoDB + RabbitMQ
+Worker:   RabbitMQ ──► Consumer ──► MinIO (download) ──► ffmpeg (60s timeout) ──► MinIO (upload)
 Status:   Client ──► nginx ──► Redis (cache hit?) or MongoDB ──► cache ──► DTO
+SSE:      Client ──► nginx ──► AudioController ──► poll every 2s ──► auto-close on terminal state
 Download: Client ──► nginx ──► MinIO stream</code></pre>
     </div>
 
@@ -85,8 +86,20 @@ Download: Client ──► nginx ──► MinIO stream</code></pre>
       <div class="card">
         <h3>Graceful Drain</h3>
         <p>On SIGTERM, the worker stops accepting new messages (<code>channel.cancel()</code>)
-        and waits for the in-flight job to finish before closing connections. Zero lost work
-        during K8s rolling updates.</p>
+        and waits for the in-flight job to finish (with 20s drain timeout) before closing connections.
+        Shutdown has a 25s hard timeout to guarantee exit before K8s SIGKILL.</p>
+      </div>
+      <div class="card">
+        <h3>Fail-Open Cache</h3>
+        <p>Redis cache errors are caught and logged, never propagated. If Redis goes down, the
+        API continues serving from MongoDB (slower, but functional). Fail-open for optimisation
+        services, fail-closed for critical ones.</p>
+      </div>
+      <div class="card">
+        <h3>Correlation IDs</h3>
+        <p>Every request gets an <code>X-Request-Id</code> header (reused from client or generated).
+        Included in all error responses and logs for end-to-end request tracing across
+        API and worker.</p>
       </div>
     </div>
   </section>
@@ -95,7 +108,7 @@ Download: Client ──► nginx ──► MinIO stream</code></pre>
   <section id="evolution">
     <h2>Project Evolution</h2>
     <p>
-      The project went through 7 rounds of technical review. Each round identified defects,
+      The project went through 8 rounds of technical review. Each round identified defects,
       and each defect was addressed in the next iteration. This timeline shows how the project
       evolved from a basic CRUD to a production-grade system.
     </p>
@@ -151,9 +164,21 @@ Download: Client ──► nginx ──► MinIO stream</code></pre>
         <div class="phase">Phase 7 — Hardening</div>
         <h3>nginx, CSP, Streaming, Validation</h3>
         <p>nginx reverse proxy (Express API-only), CSP compliance (no inline styles/scripts),
-        streaming upload to MinIO, ffprobe content validation, readiness probe with dependency checks,
+        busboy streaming upload with magic bytes validation, readiness probe with dependency checks,
         frontend modernization (ES modules, AbortController, oklch, CSS nesting).
-        176 tests, 11 ADRs.</p>
+        176 tests, 12 ADRs.</p>
+      </div>
+
+      <div class="timeline-item">
+        <div class="phase">Phase 8 — Production Readiness</div>
+        <h3>17 Issues: Resilience, Security, Observability</h3>
+        <p>Global evaluation found 17 issues. Fixed all: fail-open Redis cache, Zod config validation,
+        ffmpeg timeout + cleanup, ITempFileManager port extraction, RabbitMQ crash-and-restart,
+        shutdown timeouts, SSE endpoint, UUID validation, filename sanitisation, correlation IDs,
+        upload compensation, transient error classification, distributed rate limiting with Redis,
+        contract tests for repositories, multi-stage Dockerfile with non-root user, Docker Compose
+        hardening, and complete CI pipeline with RabbitMQ + security audit + Docker build.
+        245 tests.</p>
       </div>
     </div>
   </section>
@@ -192,10 +217,10 @@ Download: Client ──► nginx ──► MinIO stream</code></pre>
       <div class="card challenge">
         <h3>50MB Upload Without RAM Buffer</h3>
         <div class="problem">Problem: multer memoryStorage holds entire file in RAM per request</div>
-        <div class="solution">Solution: multer diskStorage → createReadStream → MinIO stream</div>
-        <div class="detail">Files land in <code>os.tmpdir()</code>, get streamed to MinIO, and cleaned up.
-        No 50MB buffer in memory. Worker does the same: download from MinIO to temp, process with
-        ffmpeg, upload result, cleanup in <code>finally</code>.</div>
+        <div class="solution">Solution: busboy streaming + magic bytes validation → MinIO stream</div>
+        <div class="detail">Replaced multer with busboy for true streaming: bytes flow directly to MinIO
+        after validating the first 12 bytes (magic bytes). No temp file, no RAM buffer. Worker uses
+        ITempFileManager port for local file operations, keeping Clean Architecture intact.</div>
       </div>
 
       <div class="card challenge">
@@ -238,6 +263,7 @@ Download: Client ──► nginx ──► MinIO stream</code></pre>
       <li><span class="number">009</span><span class="title">Contract Tests Only for Ports with Multiple Implementations (YAGNI)</span></li>
       <li><span class="number">010</span><span class="title">Nginx Reverse Proxy — Express is API-only, nginx serves static files</span></li>
       <li><span class="number">011</span><span class="title">TLS in Production — cert-manager + Ingress (documented, not implemented)</span></li>
+      <li><span class="number">012</span><span class="title">Busboy Streaming Upload — replace multer with busboy for zero-buffer uploads</span></li>
     </ul>
   </section>
 
@@ -253,7 +279,9 @@ Download: Client ──► nginx ──► MinIO stream</code></pre>
       <div class="tech-badge"><span class="category">Cache</span> Redis 7 (ioredis)</div>
       <div class="tech-badge"><span class="category">Queue</span> RabbitMQ 3 (amqplib + DLQ)</div>
       <div class="tech-badge"><span class="category">Storage</span> MinIO (S3-compatible)</div>
-      <div class="tech-badge"><span class="category">Audio</span> ffmpeg + ffprobe</div>
+      <div class="tech-badge"><span class="category">Audio</span> ffmpeg + ffprobe (with timeout)</div>
+      <div class="tech-badge"><span class="category">Rate Limit</span> express-rate-limit + Redis</div>
+      <div class="tech-badge"><span class="category">Config</span> Zod schema validation</div>
       <div class="tech-badge"><span class="category">Testing</span> Vitest + Supertest + jsdom</div>
       <div class="tech-badge"><span class="category">Linting</span> ESLint 9 + Stylelint</div>
       <div class="tech-badge"><span class="category">Deploy</span> Docker Compose + Kubernetes</div>
