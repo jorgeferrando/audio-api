@@ -17,12 +17,12 @@ import type { Request, Response, NextFunction } from 'express'
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 const makeUploadUseCase = () => ({
-  execute: vi.fn().mockResolvedValue(ok({ audioTrackId: 'track-1', jobId: 'job-1' })),
+  execute: vi.fn().mockResolvedValue(ok({ audioTrackId: '550e8400-e29b-41d4-a716-446655440000', jobId: 'job-1' })),
 })
 
 const makeGetStatusUseCase = () => ({
   execute: vi.fn().mockResolvedValue(ok({
-    audioTrackId: 'track-1', filename: 'song.mp3', mimeType: 'audio/mpeg',
+    audioTrackId: '550e8400-e29b-41d4-a716-446655440000', filename: 'song.mp3', mimeType: 'audio/mpeg',
     sizeInBytes: 1024, status: AudioTrackStatus.PENDING, downloadReady: false,
     createdAt: new Date(),
     job: { jobId: 'job-1', effect: AudioEffect.NORMALIZE, status: JobStatus.PENDING },
@@ -113,7 +113,7 @@ describe('AudioController', () => {
         1024,
       )
       expect(res.status).toHaveBeenCalledWith(202)
-      expect(res.json).toHaveBeenCalledWith({ audioTrackId: 'track-1', jobId: 'job-1' })
+      expect(res.json).toHaveBeenCalledWith({ audioTrackId: '550e8400-e29b-41d4-a716-446655440000', jobId: 'job-1' })
     })
 
     it('passes storage key (not local path) to the use case', async () => {
@@ -161,14 +161,14 @@ describe('AudioController', () => {
   describe('getStatus()', () => {
     it('returns 200 with the status DTO', async () => {
       const res = makeRes()
-      await controller.getStatus(makeReq({ params: { id: 'track-1' } }), res, next)
+      await controller.getStatus(makeReq({ params: { id: '550e8400-e29b-41d4-a716-446655440000' } }), res, next)
       expect(res.status).toHaveBeenCalledWith(200)
     })
   })
 
   describe('download()', () => {
     it('calls next with NOT_READY when track is not processed yet', async () => {
-      await controller.download(makeReq({ params: { id: 'track-1' } }), makeRes(), next)
+      await controller.download(makeReq({ params: { id: '550e8400-e29b-41d4-a716-446655440000' } }), makeRes(), next)
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: 'NOT_READY' }))
     })
 
@@ -177,7 +177,7 @@ describe('AudioController', () => {
         filePath: 'processed/abc.mp3', filename: 'song.mp3', mimeType: 'audio/mpeg',
       }))
       const res = makeRes()
-      await controller.download(makeReq({ params: { id: 'track-1' } }), res, next)
+      await controller.download(makeReq({ params: { id: '550e8400-e29b-41d4-a716-446655440000' } }), res, next)
 
       expect(fileStorage.download).toHaveBeenCalledWith('processed/abc.mp3')
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'audio/mpeg')
@@ -189,7 +189,7 @@ describe('AudioController', () => {
       }))
       vi.mocked(fileStorage.download).mockResolvedValue(err(new StorageError('not found')))
 
-      await controller.download(makeReq({ params: { id: 'track-1' } }), makeRes(), next)
+      await controller.download(makeReq({ params: { id: '550e8400-e29b-41d4-a716-446655440000' } }), makeRes(), next)
       expect(next).toHaveBeenCalledWith(expect.any(StorageError))
     })
   })

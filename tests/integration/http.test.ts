@@ -25,7 +25,7 @@ const makeLogger = (): ILogger => ({
 })
 
 const statusDto = {
-  audioTrackId: 'track-1',
+  audioTrackId: '550e8400-e29b-41d4-a716-446655440000',
   filename:     'song.mp3',
   mimeType:     'audio/mpeg',
   sizeInBytes:  1024,
@@ -39,7 +39,7 @@ const statusDto = {
 }
 
 const makeUploadUseCase = () => ({
-  execute: vi.fn().mockResolvedValue(ok({ audioTrackId: 'track-1', jobId: 'job-1' })),
+  execute: vi.fn().mockResolvedValue(ok({ audioTrackId: '550e8400-e29b-41d4-a716-446655440000', jobId: 'job-1' })),
 })
 
 const makeGetStatusUseCase = () => ({
@@ -94,17 +94,17 @@ describe('HTTP Integration', () => {
 
   describe('GET /api/v1/audio/:id', () => {
     it('returns 200 with the status DTO', async () => {
-      const res = await request(buildApp()).get('/api/v1/audio/track-1')
+      const res = await request(buildApp()).get('/api/v1/audio/550e8400-e29b-41d4-a716-446655440000')
       expect(res.status).toBe(200)
-      expect(res.body.audioTrackId).toBe('track-1')
+      expect(res.body.audioTrackId).toBe('550e8400-e29b-41d4-a716-446655440000')
       expect(res.body.job.effect).toBe('NORMALIZE')
     })
 
     it('returns 404 when audio track does not exist', async () => {
       const getStatus = makeGetStatusUseCase()
-      getStatus.execute.mockResolvedValue(err(new NotFoundError('AudioTrack', 'unknown-id')))
+      getStatus.execute.mockResolvedValue(err(new NotFoundError('AudioTrack', '660e8400-e29b-41d4-a716-446655440001')))
 
-      const res = await request(buildApp(getStatus)).get('/api/v1/audio/unknown-id')
+      const res = await request(buildApp(getStatus)).get('/api/v1/audio/660e8400-e29b-41d4-a716-446655440001')
       expect(res.status).toBe(404)
       expect(res.body.error).toBe('NOT_FOUND')
     })
@@ -113,7 +113,7 @@ describe('HTTP Integration', () => {
       const getStatus = makeGetStatusUseCase()
       getStatus.execute.mockResolvedValue(err(new DatabaseError('timeout')))
 
-      const res = await request(buildApp(getStatus)).get('/api/v1/audio/track-1')
+      const res = await request(buildApp(getStatus)).get('/api/v1/audio/550e8400-e29b-41d4-a716-446655440000')
       expect(res.status).toBe(503)
       expect(res.body.error).toBe('DATABASE_ERROR')
     })
@@ -121,7 +121,7 @@ describe('HTTP Integration', () => {
 
   describe('GET /api/v1/audio/:id/download', () => {
     it('returns 404 when track does not exist', async () => {
-      const res = await request(buildApp()).get('/api/v1/audio/unknown/download')
+      const res = await request(buildApp()).get('/api/v1/audio/770e8400-e29b-41d4-a716-446655440002/download')
       expect(res.status).toBe(404)
       expect(res.body.error).toBe('NOT_FOUND')
     })

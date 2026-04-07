@@ -23,22 +23,25 @@ const HTTP_STATUS: Record<string, number> = {
  *   3. Unknown — generic 500 without leaking internals.
  */
 export function errorHandler(logger: ILogger) {
-  return (error: unknown, _req: Request, res: Response, _next: NextFunction): void => {
+  return (error: unknown, req: Request, res: Response, _next: NextFunction): void => {
+    const correlationId = req.correlationId
+
     if (error instanceof AppError) {
       const status = HTTP_STATUS[error.code] ?? StatusCodes.INTERNAL_SERVER_ERROR
-      res.status(status).json({ error: error.code, message: error.message })
+      res.status(status).json({ error: error.code, message: error.message, correlationId })
       return
     }
 
     if (error instanceof Error && error.message) {
-      res.status(StatusCodes.BAD_REQUEST).json({ error: 'VALIDATION_ERROR', message: error.message })
+      res.status(StatusCodes.BAD_REQUEST).json({ error: 'VALIDATION_ERROR', message: error.message, correlationId })
       return
     }
 
-    logger.error('Unhandled error', { error })
+    logger.error('Unhandled error', { error, correlationId })
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       error:   'INTERNAL_ERROR',
       message: 'An unexpected error occurred',
+      correlationId,
     })
   }
 }
