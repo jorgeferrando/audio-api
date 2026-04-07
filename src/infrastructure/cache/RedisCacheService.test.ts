@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { RedisCacheService } from './RedisCacheService'
+import type { ILogger } from '@shared/ILogger'
 
-// Minimal mock of the ioredis Redis client — only the methods we use.
 function makeRedisClient() {
   return {
     get: vi.fn(),
@@ -10,13 +10,19 @@ function makeRedisClient() {
   }
 }
 
+function makeLogger(): ILogger {
+  return { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+}
+
 describe('RedisCacheService', () => {
   let client: ReturnType<typeof makeRedisClient>
+  let logger: ILogger
   let cache: RedisCacheService
 
   beforeEach(() => {
     client = makeRedisClient()
-    cache  = new RedisCacheService(client as never)
+    logger = makeLogger()
+    cache  = new RedisCacheService(client as never, logger)
   })
 
   describe('get()', () => {
@@ -34,6 +40,27 @@ describe('RedisCacheService', () => {
       const result = await cache.get('missing-key')
 
       expect(result).toBeNull()
+    })
+
+    it('returns null and logs when Redis throws', async () => {
+      client.get.mockRejectedValue(new Error('connection lost'))
+
+      const result = await cache.get('my-key')
+
+      expect(result).toBeNull()
+      expect(logger.error).toHaveBeenCalledWith(
+        'RedisCacheService: get failed',
+        expect.objectContaining({ key: 'my-key' }),
+      )
+    })
+
+    it('returns null and logs when cached value is corrupted JSON', async () => {
+      client.get.mockResolvedValue('not-valid-json{{{')
+
+      const result = await cache.get('my-key')
+
+      expect(result).toBeNull()
+      expect(logger.error).toHaveBeenCalled()
     })
   })
 
@@ -55,6 +82,16 @@ describe('RedisCacheService', () => {
       const [, , , ttl] = client.set.mock.calls[0]
       expect(ttl).toBeGreaterThan(0)
     })
+
+    it('swallows error and logs when Redis throws', async () => {
+      client.set.mockRejectedValue(new Error('connection lost'))
+
+      await expect(cache.set('my-key', 'value')).resolves.toBeUndefined()
+      expect(logger.error).toHaveBeenCalledWith(
+        'RedisCacheService: set failed',
+        expect.objectContaining({ key: 'my-key' }),
+      )
+    })
   })
 
   describe('del()', () => {
@@ -62,6 +99,16 @@ describe('RedisCacheService', () => {
       await cache.del('my-key')
 
       expect(client.del).toHaveBeenCalledWith('my-key')
+    })
+
+    it('swallows error and logs when Redis throws', async () => {
+      client.del.mockRejectedValue(new Error('connection lost'))
+
+      await expect(cache.del('my-key')).resolves.toBeUndefined()
+      expect(logger.error).toHaveBeenCalledWith(
+        'RedisCacheService: del failed',
+        expect.objectContaining({ key: 'my-key' }),
+      )
     })
   })
 })

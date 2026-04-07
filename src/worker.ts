@@ -1,7 +1,7 @@
-import dotenv from 'dotenv'
 import Redis from 'ioredis'
 import { Client as MinioClient } from 'minio'
 import { WinstonLogger } from '@infrastructure/logger/WinstonLogger'
+import { loadConfig } from '@infrastructure/config'
 import { connectMongo, disconnectMongo } from '@infrastructure/db/mongoConnection'
 import { connectRabbitMQ, disconnectRabbitMQ } from '@infrastructure/queue/rabbitMQSetup'
 import { AudioTrackMongoRepository } from '@infrastructure/db/AudioTrackMongoRepository'
@@ -10,38 +10,30 @@ import { RedisCacheService } from '@infrastructure/cache/RedisCacheService'
 import { FfmpegAudioProcessor } from '@infrastructure/audio/FfmpegAudioProcessor'
 import { MinioFileStorage } from '@infrastructure/storage/MinioFileStorage'
 import { ProcessJobUseCase } from '@application/job/ProcessJobUseCase'
+import { NodeTempFileManager } from '@infrastructure/fs/NodeTempFileManager'
 import { RabbitMQConsumer } from '@infrastructure/queue/RabbitMQConsumer'
 
-dotenv.config()
-
-const MONGO_URI       = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/audio-api'
-const REDIS_URL       = process.env.REDIS_URL ?? 'redis://localhost:6379'
-const RABBIT_URL      = process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672'
-const MINIO_ENDPOINT  = process.env.MINIO_ENDPOINT ?? 'localhost'
-const MINIO_PORT      = Number(process.env.MINIO_PORT ?? 9000)
-const MINIO_ACCESS    = process.env.MINIO_ACCESS_KEY ?? 'minioadmin'
-const MINIO_SECRET    = process.env.MINIO_SECRET_KEY ?? 'minioadmin'
-const MINIO_BUCKET    = process.env.MINIO_BUCKET ?? 'audio-api'
+const config = loadConfig()
 
 async function main(): Promise<void> {
-  const logger = new WinstonLogger(process.env.NODE_ENV ?? 'development')
+  const logger = new WinstonLogger(config.NODE_ENV)
 
   // ── Infrastructure ────────────────────────────────────────────────────
-  await connectMongo(MONGO_URI, logger)
+  await connectMongo(config.MONGODB_URI, logger)
 
-  const redis      = new Redis(REDIS_URL)
-  const cache      = new RedisCacheService(redis)
-  const rabbitConn = await connectRabbitMQ(RABBIT_URL, logger)
+  const redis      = new Redis(config.REDIS_URL)
+  const cache      = new RedisCacheService(redis, logger)
+  const rabbitConn = await connectRabbitMQ(config.RABBITMQ_URL, logger)
 
   const minioClient = new MinioClient({
-    endPoint: MINIO_ENDPOINT, port: MINIO_PORT,
-    useSSL: false, accessKey: MINIO_ACCESS, secretKey: MINIO_SECRET,
+    endPoint: config.MINIO_ENDPOINT, port: config.MINIO_PORT,
+    useSSL: false, accessKey: config.MINIO_ACCESS_KEY, secretKey: config.MINIO_SECRET_KEY,
   })
-  const bucketExists = await minioClient.bucketExists(MINIO_BUCKET)
-  if (!bucketExists) await minioClient.makeBucket(MINIO_BUCKET)
-  logger.info('MinIO connected', { bucket: MINIO_BUCKET })
+  const bucketExists = await minioClient.bucketExists(config.MINIO_BUCKET)
+  if (!bucketExists) await minioClient.makeBucket(config.MINIO_BUCKET)
+  logger.info('MinIO connected', { bucket: config.MINIO_BUCKET })
 
-  const fileStorage = new MinioFileStorage(minioClient, MINIO_BUCKET, logger)
+  const fileStorage = new MinioFileStorage(minioClient, config.MINIO_BUCKET, logger)
 
   // ── Repositories ──────────────────────────────────────────────────────
   const audioRepo = new AudioTrackMongoRepository(logger)
@@ -51,7 +43,8 @@ async function main(): Promise<void> {
   const audioProcessor = new FfmpegAudioProcessor(logger)
 
   // ── Use case ──────────────────────────────────────────────────────────
-  const processJob = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, fileStorage, cache, logger)
+  const tempFiles  = new NodeTempFileManager()
+  const processJob = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, fileStorage, cache, logger, tempFiles)
 
   // ── Consumer ──────────────────────────────────────────────────────────
   const consumer = new RabbitMQConsumer(rabbitConn.channel, processJob, logger)
@@ -65,10 +58,21 @@ async function main(): Promise<void> {
   // 3. Close connections
   const shutdown = async (): Promise<void> => {
     logger.info('Worker shutting down...')
-    await consumer.stop()
-    await disconnectRabbitMQ(rabbitConn, logger)
-    redis.disconnect()
-    await disconnectMongo(logger)
+    const forceExit = setTimeout(() => {
+      logger.error('Worker shutdown timed out, forcing exit')
+      process.exit(1)
+    }, config.SHUTDOWN_TIMEOUT_MS)
+    forceExit.unref()
+
+    try {
+      await consumer.stop()
+      await disconnectRabbitMQ(rabbitConn, logger)
+      redis.disconnect()
+      await disconnectMongo(logger)
+    } catch (e) {
+      logger.error('Error during worker shutdown', { error: e })
+    }
+    clearTimeout(forceExit)
     process.exit(0)
   }
 
