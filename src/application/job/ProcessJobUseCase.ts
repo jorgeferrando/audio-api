@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { readFile } from 'fs/promises'
+import { stat } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -93,9 +93,10 @@ export class ProcessJobUseCase {
       // ── Upload processed file back to storage ─────────────────────────────
 
       const outputKey = `processed/${audio.id}_${job.effect}${ext}`
-      const processedBuffer = await readFile(tempOutput)
+      const { size } = await stat(tempOutput)
+      const processedStream = fs.createReadStream(tempOutput)
 
-      const uploadResult = await this.fileStorage.upload(outputKey, processedBuffer, audio.mimeType)
+      const uploadResult = await this.fileStorage.upload(outputKey, processedStream, audio.mimeType, size)
       if (uploadResult.isErr()) {
         await this.markAsFailed(job, audio, 'failed to upload processed file')
         return err(uploadResult.error)

@@ -15,12 +15,13 @@ vi.mock('fs', async (importOriginal) => {
         write: vi.fn().mockReturnThis(),
         end: vi.fn().mockReturnThis(),
       }),
+      createReadStream: vi.fn().mockReturnValue(Readable.from(Buffer.from('processed-audio'))),
     },
   }
 })
 
 vi.mock('fs/promises', () => ({
-  readFile: vi.fn().mockResolvedValue(Buffer.from('processed-audio')),
+  stat: vi.fn().mockResolvedValue({ size: 1024 }),
 }))
 
 vi.mock('stream/promises', () => ({
