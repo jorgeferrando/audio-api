@@ -1,3 +1,45 @@
+import { showToast } from './toast.js'
+
+/**
+ * Audio magic byte signatures — mirrors the backend audioSignatures.ts.
+ * Each entry: [offset, expected bytes].
+ */
+const AUDIO_SIGNATURES = [
+  { offset: 0, bytes: [0x52, 0x49, 0x46, 0x46], offset2: 8, bytes2: [0x57, 0x41, 0x56, 0x45] }, // WAV: RIFF + WAVE
+  { offset: 0, bytes: [0x49, 0x44, 0x33] },       // MP3 ID3v2
+  { offset: 0, bytes: [0x4F, 0x67, 0x67, 0x53] }, // OGG
+  { offset: 0, bytes: [0x66, 0x4C, 0x61, 0x43] }, // FLAC
+  { offset: 0, bytes: [0x1A, 0x45, 0xDF, 0xA3] }, // WebM/EBML
+]
+
+/** MPEG sync bytes — checked separately due to multiple variants. */
+const MPEG_SYNC = [0xFB, 0xF3, 0xF2] // MP3
+const AAC_SYNC  = [0xF1, 0xF9]       // AAC ADTS
+
+function isAudioHeader(view) {
+  // Check fixed-offset signatures
+  for (const sig of AUDIO_SIGNATURES) {
+    if (view.byteLength < sig.offset + sig.bytes.length) continue
+    const match = sig.bytes.every((b, i) => view.getUint8(sig.offset + i) === b)
+    if (!match) continue
+    // WAV needs second check at offset 8
+    if (sig.bytes2) {
+      if (view.byteLength < sig.offset2 + sig.bytes2.length) continue
+      if (sig.bytes2.every((b, i) => view.getUint8(sig.offset2 + i) === b)) return true
+    } else {
+      return true
+    }
+  }
+
+  // Check 0xFF-prefixed formats (MP3 frame sync, AAC ADTS)
+  if (view.byteLength >= 2 && view.getUint8(0) === 0xFF) {
+    const second = view.getUint8(1)
+    if (MPEG_SYNC.includes(second) || AAC_SYNC.includes(second)) return true
+  }
+
+  return false
+}
+
 export function initUploader({ onFileSelected }) {
   const dropzone = document.getElementById('dropzone')
   const fileInput = document.getElementById('fileInput')
@@ -17,12 +59,24 @@ export function initUploader({ onFileSelected }) {
   dropzone.addEventListener('drop', (e) => {
     e.preventDefault()
     dropzone.classList.remove('dropzone--drag-over')
-    if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0])
+    if (e.dataTransfer.files.length) validateAndSelect(e.dataTransfer.files[0])
   })
 
   fileInput.addEventListener('change', () => {
-    if (fileInput.files.length) selectFile(fileInput.files[0])
+    if (fileInput.files.length) validateAndSelect(fileInput.files[0])
   })
+
+  async function validateAndSelect(file) {
+    const header = await file.slice(0, 12).arrayBuffer()
+    const view = new DataView(header)
+
+    if (!isAudioHeader(view)) {
+      showToast('File does not appear to be a valid audio file')
+      return
+    }
+
+    selectFile(file)
+  }
 
   function selectFile(file) {
     iconEl.textContent = '\u2713'
