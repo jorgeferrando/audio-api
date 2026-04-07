@@ -1,6 +1,3 @@
-import fs from 'fs'
-import path from 'path'
-import { randomUUID } from 'crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { StatusCodes } from 'http-status-codes'
@@ -28,35 +25,30 @@ export class AudioController {
   ) {}
 
   upload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.file) {
+    if (!req.uploadedFile) {
       next(new ValidationError('file is required'))
       return
     }
 
     const parsed = effectSchema.safeParse(req.body)
     if (!parsed.success) {
-      this.cleanupTempFile(req.file.path)
+      req.uploadedFile.stream.destroy()
       next(new ValidationError(parsed.error.issues[0].message))
       return
     }
 
-    // Stream from temp file to MinIO (no full buffer in RAM)
-    const ext = path.extname(req.file.originalname)
-    const storageKey = `originals/${randomUUID()}${ext}`
-    const stream = fs.createReadStream(req.file.path)
+    const { stream, filename, mimeType, size, storageKey } = req.uploadedFile
 
-    const uploadResult = await this.fileStorage.upload(storageKey, stream, req.file.mimetype, req.file.size)
-    this.cleanupTempFile(req.file.path)
-
+    const uploadResult = await this.fileStorage.upload(storageKey, stream, mimeType, size)
     if (uploadResult.isErr()) {
       next(uploadResult.error)
       return
     }
 
     const result = await this.uploadAudio.execute({
-      filename:    req.file.originalname,
-      mimeType:    req.file.mimetype,
-      sizeInBytes: req.file.size,
+      filename,
+      mimeType,
+      sizeInBytes: size,
       effect:      parsed.data.effect,
       filePath:    storageKey,
     })
@@ -130,9 +122,5 @@ export class AudioController {
     }
 
     res.status(StatusCodes.NO_CONTENT).end()
-  }
-
-  private cleanupTempFile(filePath: string): void {
-    fs.unlink(filePath, () => {}) // fire-and-forget, non-blocking
   }
 }

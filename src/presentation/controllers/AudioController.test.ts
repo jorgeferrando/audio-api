@@ -1,18 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Readable } from 'stream'
-
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return {
-    ...actual,
-    default: {
-      ...actual,
-      createReadStream: vi.fn().mockReturnValue(Readable.from(Buffer.from('audio'))),
-      unlinkSync: vi.fn(),
-    },
-  }
-})
-
 import { AudioController } from './AudioController'
 import { AudioEffect } from '@domain/job/ProcessingJob'
 import { AudioTrackStatus } from '@domain/audio/AudioTrack'
@@ -101,36 +88,53 @@ describe('AudioController', () => {
   })
 
   describe('upload()', () => {
-    const validFile = {
-      originalname: 'song.mp3', mimetype: 'audio/mpeg',
-      size: 1024, path: '/tmp/upload-abc.mp3',
+    const validUploadedFile = {
+      stream: Readable.from(Buffer.from('audio-data')),
+      filename: 'song.mp3',
+      mimeType: 'audio/mpeg',
+      size: 1024,
+      storageKey: 'originals/abc-123.mp3',
     }
 
-    it('uploads file to storage then returns 202', async () => {
-      const req = makeReq({ file: validFile as any, body: { effect: 'NORMALIZE' } })
+    it('streams file to storage then returns 202', async () => {
+      const req = makeReq({
+        uploadedFile: { ...validUploadedFile },
+        body: { effect: 'NORMALIZE' },
+      })
       const res = makeRes()
 
       await controller.upload(req, res, next)
 
       expect(fileStorage.upload).toHaveBeenCalledOnce()
+      expect(fileStorage.upload).toHaveBeenCalledWith(
+        'originals/abc-123.mp3',
+        validUploadedFile.stream,
+        'audio/mpeg',
+        1024,
+      )
       expect(res.status).toHaveBeenCalledWith(202)
       expect(res.json).toHaveBeenCalledWith({ audioTrackId: 'track-1', jobId: 'job-1' })
     })
 
     it('passes storage key (not local path) to the use case', async () => {
-      const req = makeReq({ file: validFile as any, body: { effect: 'REVERB' } })
+      const req = makeReq({
+        uploadedFile: { ...validUploadedFile },
+        body: { effect: 'REVERB' },
+      })
       const res = makeRes()
 
       await controller.upload(req, res, next)
 
       const callArgs = uploadUseCase.execute.mock.calls[0][0]
-      expect(callArgs.filePath).toMatch(/^originals\//)
-      expect(callArgs.filePath).toMatch(/\.mp3$/)
+      expect(callArgs.filePath).toBe('originals/abc-123.mp3')
     })
 
     it('calls next with StorageError when upload to storage fails', async () => {
       vi.mocked(fileStorage.upload).mockResolvedValue(err(new StorageError('connection refused')))
-      const req = makeReq({ file: validFile as any, body: { effect: 'NORMALIZE' } })
+      const req = makeReq({
+        uploadedFile: { ...validUploadedFile },
+        body: { effect: 'NORMALIZE' },
+      })
       const res = makeRes()
 
       await controller.upload(req, res, next)
@@ -145,7 +149,11 @@ describe('AudioController', () => {
     })
 
     it('calls next with ValidationError for invalid effect', async () => {
-      await controller.upload(makeReq({ file: validFile as any, body: { effect: 'X' } }), makeRes(), next)
+      await controller.upload(
+        makeReq({ uploadedFile: { ...validUploadedFile }, body: { effect: 'X' } }),
+        makeRes(),
+        next,
+      )
       expect(next).toHaveBeenCalledWith(expect.any(ValidationError))
     })
   })

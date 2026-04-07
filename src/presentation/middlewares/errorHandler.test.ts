@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest'
-import multer from 'multer'
 import { errorHandler } from './errorHandler'
 import { AppError, ValidationError, NotFoundError, DatabaseError } from '@shared/AppError'
 import type { ILogger } from '@shared/ILogger'
@@ -55,19 +54,7 @@ describe('errorHandler', () => {
     expect(res.status).toHaveBeenCalledWith(500)
   })
 
-  it('maps MulterError to 400 with descriptive message', () => {
-    const res = makeRes()
-    const multerErr = new multer.MulterError('LIMIT_FILE_SIZE')
-    handler(multerErr, req, res, next)
-
-    expect(res.status).toHaveBeenCalledWith(400)
-    expect(res.json).toHaveBeenCalledWith({
-      error: 'UPLOAD_ERROR',
-      message: 'File exceeds the maximum allowed size of 50MB',
-    })
-  })
-
-  it('maps generic Error with message to 400 (e.g. multer fileFilter)', () => {
+  it('maps generic Error with message to 400', () => {
     const res = makeRes()
     handler(new Error('Invalid audio type: application/pdf'), req, res, next)
 

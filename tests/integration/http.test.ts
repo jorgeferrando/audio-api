@@ -48,8 +48,8 @@ const makeGetStatusUseCase = () => ({
 
 /**
  * Build a minimal Express app for testing GET routes and error handling.
- * Upload tests are done in controller unit tests because they need
- * multer + real file — the HTTP integration tests focus on the response
+ * Upload tests are done in controller unit tests — the HTTP integration
+ * tests focus on the response
  * pipeline (routing → controller → errorHandler).
  */
 function buildApp(getStatusOverride?: ReturnType<typeof makeGetStatusUseCase>) {

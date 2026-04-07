@@ -18,7 +18,6 @@ export function createApp(
   logger: ILogger,
   apiKey?: string,
   healthChecks?: HealthCheck[],
-  validateAudio?: express.RequestHandler,
 ): express.Application {
   const app = express()
 
@@ -37,7 +36,7 @@ export function createApp(
   // ── Routes ──────────────────────────────────────────────────────────────
   const v1 = Router()
   v1.use('/health', healthRoutes(healthChecks))
-  v1.use('/audio',  apiKeyAuth(apiKey), audioRoutes(controller, validateAudio))
+  v1.use('/audio',  apiKeyAuth(apiKey), audioRoutes(controller))
 
   app.use('/api/v1', v1)
 
