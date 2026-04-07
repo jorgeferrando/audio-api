@@ -1,17 +1,10 @@
-import ffmpeg from 'fluent-ffmpeg'
+import { detectAudioFormat } from './audioSignatures'
 
 /**
- * Validates that a file contains real audio data using ffprobe.
- * Returns true if ffprobe can detect an audio stream, false otherwise.
- *
- * Accepts a file path (not a buffer) to avoid loading the file into memory.
+ * Validates that a buffer contains magic bytes of a known audio format.
+ * Designed to be called with the first 12+ bytes of a file for early
+ * rejection without reading the entire file or spawning ffprobe.
  */
-export function validateAudioContent(filePath: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) { resolve(false); return }
-      const hasAudio = metadata.streams?.some(s => s.codec_type === 'audio') ?? false
-      resolve(hasAudio)
-    })
-  })
+export function validateAudioContent(header: Buffer): boolean {
+  return detectAudioFormat(header) !== null
 }
