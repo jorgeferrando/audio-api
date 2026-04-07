@@ -1,32 +1,5 @@
 import { Readable } from 'stream'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return {
-    ...actual,
-    default: {
-      ...actual,
-      unlinkSync: vi.fn(),
-      createWriteStream: vi.fn().mockReturnValue({
-        on: vi.fn().mockReturnThis(),
-        once: vi.fn().mockReturnThis(),
-        emit: vi.fn().mockReturnThis(),
-        write: vi.fn().mockReturnThis(),
-        end: vi.fn().mockReturnThis(),
-      }),
-      createReadStream: vi.fn().mockReturnValue(Readable.from(Buffer.from('processed-audio'))),
-    },
-  }
-})
-
-vi.mock('fs/promises', () => ({
-  stat: vi.fn().mockResolvedValue({ size: 1024 }),
-}))
-
-vi.mock('stream/promises', () => ({
-  pipeline: vi.fn().mockResolvedValue(undefined),
-}))
 import { ProcessJobUseCase } from './ProcessJobUseCase'
 import { AudioTrack } from '@domain/audio/AudioTrack'
 import { ProcessingJob, AudioEffect, JobStatus } from '@domain/job/ProcessingJob'
@@ -37,6 +10,7 @@ import type { IAudioProcessor } from './IAudioProcessor'
 import type { IFileStorage } from '@application/storage/IFileStorage'
 import type { ICacheService } from '@shared/ICacheService'
 import type { ILogger } from '@shared/ILogger'
+import type { ITempFileManager } from './ITempFileManager'
 import { ok, err } from '@shared/Result'
 import { DatabaseError, AppError, StorageError } from '@shared/AppError'
 
@@ -65,6 +39,7 @@ const makeJobRepo = (): IProcessingJobRepository => ({
   save: vi.fn().mockResolvedValue(ok(undefined)),
   findById: vi.fn(),
   findByAudioTrackId: vi.fn(),
+  deleteById: vi.fn().mockResolvedValue(ok(undefined)),
 })
 
 const makeAudioProcessor = (): IAudioProcessor => ({
@@ -88,6 +63,14 @@ const makeLogger = (): ILogger => ({
   info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(),
 })
 
+const makeTempFiles = (): ITempFileManager => ({
+  createTempPaths: vi.fn().mockReturnValue({ inputPath: '/tmp/input.mp3', outputPath: '/tmp/output.mp3' }),
+  writeStream: vi.fn().mockResolvedValue(ok(undefined)),
+  getFileSize: vi.fn().mockResolvedValue(ok(1024)),
+  createReadStream: vi.fn().mockReturnValue(Readable.from(Buffer.from('processed-audio'))),
+  cleanup: vi.fn(),
+})
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('ProcessJobUseCase', () => {
@@ -97,6 +80,7 @@ describe('ProcessJobUseCase', () => {
   let fileStorage: IFileStorage
   let cache: ICacheService
   let logger: ILogger
+  let tempFiles: ITempFileManager
   let useCase: ProcessJobUseCase
 
   beforeEach(() => {
@@ -106,7 +90,8 @@ describe('ProcessJobUseCase', () => {
     fileStorage    = makeFileStorage()
     cache          = makeCache()
     logger         = makeLogger()
-    useCase        = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, fileStorage, cache, logger)
+    tempFiles      = makeTempFiles()
+    useCase        = new ProcessJobUseCase(audioRepo, jobRepo, audioProcessor, fileStorage, cache, logger, tempFiles)
   })
 
   it('downloads from storage, processes, uploads result, and transitions to READY', async () => {
@@ -120,11 +105,23 @@ describe('ProcessJobUseCase', () => {
 
     expect(result.isOk()).toBe(true)
     expect(fileStorage.download).toHaveBeenCalledWith('originals/song.mp3')
+    expect(tempFiles.writeStream).toHaveBeenCalledOnce()
     expect(audioProcessor.applyEffect).toHaveBeenCalledOnce()
     expect(fileStorage.upload).toHaveBeenCalledOnce()
     expect(job.status).toBe(JobStatus.COMPLETED)
     expect(track.status).toBe(AudioTrackStatus.READY)
     expect(track.processedFilePath).toMatch(/^processed\//)
+  })
+
+  it('cleans up temp files after processing', async () => {
+    const track = makeTrack()
+    const job   = makeJob(track.id)
+    vi.mocked(jobRepo.findById).mockResolvedValue(ok(job))
+    vi.mocked(audioRepo.findById).mockResolvedValue(ok(track))
+
+    await useCase.execute({ jobId: job.id })
+
+    expect(tempFiles.cleanup).toHaveBeenCalledWith(['/tmp/input.mp3', '/tmp/output.mp3'])
   })
 
   it('invalidates the cache after processing', async () => {

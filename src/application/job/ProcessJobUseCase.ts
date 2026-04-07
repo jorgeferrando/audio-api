@@ -1,9 +1,4 @@
-import fs from 'fs'
-import { stat } from 'fs/promises'
-import os from 'os'
 import path from 'path'
-import { randomUUID } from 'crypto'
-import { pipeline } from 'stream/promises'
 import { type Result, ok, err } from '@shared/Result'
 import type { AppError} from '@shared/AppError';
 import { NotFoundError } from '@shared/AppError'
@@ -15,6 +10,7 @@ import type { IProcessingJobRepository } from '@domain/job/IProcessingJobReposit
 import { ProcessingJob, JobStatus } from '@domain/job/ProcessingJob'
 import type { IAudioProcessor } from './IAudioProcessor'
 import type { IFileStorage } from '@application/storage/IFileStorage'
+import type { ITempFileManager } from './ITempFileManager'
 
 interface ProcessJobInput {
   jobId: string
@@ -40,6 +36,7 @@ export class ProcessJobUseCase {
     private readonly fileStorage: IFileStorage,
     private readonly cache: ICacheService,
     private readonly logger: ILogger,
+    private readonly tempFiles: ITempFileManager,
   ) {}
 
   async execute(input: ProcessJobInput): Promise<Result<void, AppError>> {
@@ -69,8 +66,7 @@ export class ProcessJobUseCase {
     // ── Download from storage → temp file ─────────────────────────────────
 
     const ext = path.extname(audio.filePath)
-    const tempInput  = path.join(os.tmpdir(), `${randomUUID()}${ext}`)
-    const tempOutput = path.join(os.tmpdir(), `${randomUUID()}_processed${ext}`)
+    const { inputPath: tempInput, outputPath: tempOutput } = this.tempFiles.createTempPaths(ext)
 
     try {
       const downloadResult = await this.fileStorage.download(audio.filePath)
@@ -78,7 +74,12 @@ export class ProcessJobUseCase {
         await this.markAsFailed(job, audio, 'failed to download from storage')
         return err(downloadResult.error)
       }
-      await pipeline(downloadResult.value, fs.createWriteStream(tempInput))
+
+      const writeResult = await this.tempFiles.writeStream(tempInput, downloadResult.value)
+      if (writeResult.isErr()) {
+        await this.markAsFailed(job, audio, 'failed to write stream to temp file')
+        return err(writeResult.error)
+      }
 
       // ── Process with ffmpeg ───────────────────────────────────────────────
 
@@ -93,10 +94,14 @@ export class ProcessJobUseCase {
       // ── Upload processed file back to storage ─────────────────────────────
 
       const outputKey = `processed/${audio.id}_${job.effect}${ext}`
-      const { size } = await stat(tempOutput)
-      const processedStream = fs.createReadStream(tempOutput)
+      const sizeResult = await this.tempFiles.getFileSize(tempOutput)
+      if (sizeResult.isErr()) {
+        await this.markAsFailed(job, audio, 'failed to stat processed file')
+        return err(sizeResult.error)
+      }
+      const processedStream = this.tempFiles.createReadStream(tempOutput)
 
-      const uploadResult = await this.fileStorage.upload(outputKey, processedStream, audio.mimeType, size)
+      const uploadResult = await this.fileStorage.upload(outputKey, processedStream, audio.mimeType, sizeResult.value)
       if (uploadResult.isErr()) {
         await this.markAsFailed(job, audio, 'failed to upload processed file')
         return err(uploadResult.error)
@@ -129,9 +134,7 @@ export class ProcessJobUseCase {
       return ok(undefined)
     } finally {
       // ── Cleanup temp files ──────────────────────────────────────────────
-      for (const f of [tempInput, tempOutput]) {
-        fs.unlink(f, () => {}) // fire-and-forget cleanup
-      }
+      this.tempFiles.cleanup([tempInput, tempOutput])
     }
   }
 
