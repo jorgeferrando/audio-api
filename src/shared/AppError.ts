@@ -27,7 +27,7 @@ export class ConflictError extends AppError {
 }
 
 export class DatabaseError extends AppError {
-  constructor(message: string) {
+  constructor(message: string, readonly transient = false) {
     super(message, 'DATABASE_ERROR')
   }
 }

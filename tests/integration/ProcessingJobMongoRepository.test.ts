@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { MongoMemoryServer } from 'mongodb-memory-server'
 import mongoose from 'mongoose'
 import { ProcessingJobMongoRepository } from '@infrastructure/db/ProcessingJobMongoRepository'
+import { testProcessingJobRepositoryContract } from '@infrastructure/db/processingJobRepositoryContract'
 import { ProcessingJob, JobStatus, AudioEffect } from '@domain/job/ProcessingJob'
 import type { ILogger } from '@shared/ILogger'
 
@@ -124,3 +125,9 @@ describe('ProcessingJobMongoRepository', () => {
     })
   })
 })
+
+// ── Contract tests ──────────────────────────────────────────────────────────
+testProcessingJobRepositoryContract(
+  () => new ProcessingJobMongoRepository(logger),
+  async () => { await mongoose.connection.dropDatabase() },
+)

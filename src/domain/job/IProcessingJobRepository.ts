@@ -15,4 +15,5 @@ export interface IProcessingJobRepository {
   save(job: ProcessingJob): Promise<Result<void, DatabaseError>>
   findById(id: string): Promise<Result<ProcessingJob | null, DatabaseError>>
   findByAudioTrackId(audioTrackId: string): Promise<Result<ProcessingJob | null, DatabaseError>>
+  deleteById(id: string): Promise<Result<void, DatabaseError>>
 }

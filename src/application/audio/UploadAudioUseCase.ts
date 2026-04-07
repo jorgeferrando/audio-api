@@ -74,11 +74,13 @@ export class UploadAudioUseCase {
 
     const publishResult = await this.publisher.publish(job)
     if (publishResult.isErr()) {
-      this.logger.error('UploadAudioUseCase: failed to publish job', {
+      this.logger.error('UploadAudioUseCase: publish failed, compensating', {
         jobId: job.id,
         audioTrackId: audio.id,
         error: publishResult.error.message,
       })
+      await this.jobRepo.deleteById(job.id)
+      await this.audioRepo.deleteById(audio.id)
       return err(publishResult.error)
     }
 

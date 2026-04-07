@@ -4,6 +4,7 @@ import type { ILogger } from '@shared/ILogger'
 import { AudioTrack } from '@domain/audio/AudioTrack'
 import type { IAudioTrackRepository } from '@domain/audio/IAudioTrackRepository'
 import { AudioTrackModel } from './models/AudioTrackModel'
+import { isTransientMongoError } from './classifyMongoError'
 
 export class AudioTrackMongoRepository implements IAudioTrackRepository {
   constructor(private readonly logger: ILogger) {}
@@ -27,7 +28,7 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
       return ok(undefined)
     } catch (e) {
       this.logger.error('AudioTrackMongoRepository.save failed', { error: e, audioId: audio.id })
-      return err(new DatabaseError('Failed to save AudioTrack'))
+      return err(new DatabaseError(`Failed to save AudioTrack: ${(e as Error).message}`, isTransientMongoError(e)))
     }
   }
 
@@ -49,7 +50,7 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
       }))
     } catch (e) {
       this.logger.error('AudioTrackMongoRepository.findById failed', { error: e, id })
-      return err(new DatabaseError('Failed to find AudioTrack'))
+      return err(new DatabaseError(`Failed to find AudioTrack: ${(e as Error).message}`, isTransientMongoError(e)))
     }
   }
 
@@ -75,7 +76,7 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
       return ok({ items, total })
     } catch (e) {
       this.logger.error('AudioTrackMongoRepository.findAll failed', { error: e })
-      return err(new DatabaseError('Failed to list AudioTracks'))
+      return err(new DatabaseError(`Failed to list AudioTracks: ${(e as Error).message}`, isTransientMongoError(e)))
     }
   }
 
@@ -85,7 +86,7 @@ export class AudioTrackMongoRepository implements IAudioTrackRepository {
       return ok(undefined)
     } catch (e) {
       this.logger.error('AudioTrackMongoRepository.deleteById failed', { error: e, id })
-      return err(new DatabaseError('Failed to delete AudioTrack'))
+      return err(new DatabaseError(`Failed to delete AudioTrack: ${(e as Error).message}`, isTransientMongoError(e)))
     }
   }
 }

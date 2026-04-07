@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { MongoMemoryServer } from 'mongodb-memory-server'
 import mongoose from 'mongoose'
 import { AudioTrackMongoRepository } from '@infrastructure/db/AudioTrackMongoRepository'
+import { testAudioTrackRepositoryContract } from '@infrastructure/db/audioTrackRepositoryContract'
 import { AudioTrack, AudioTrackStatus } from '@domain/audio/AudioTrack'
 import type { ILogger } from '@shared/ILogger'
 
@@ -149,3 +150,9 @@ describe('AudioTrackMongoRepository', () => {
     })
   })
 })
+
+// ── Contract tests ──────────────────────────────────────────────────────────
+testAudioTrackRepositoryContract(
+  () => new AudioTrackMongoRepository(logger),
+  async () => { await mongoose.connection.dropDatabase() },
+)

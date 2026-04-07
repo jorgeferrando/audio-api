@@ -38,6 +38,7 @@ const makeJobRepo = (): IProcessingJobRepository => ({
   save: vi.fn(),
   findById: vi.fn(),
   findByAudioTrackId: vi.fn(),
+  deleteById: vi.fn(),
 })
 
 const makeCache = (): ICacheService => ({

@@ -19,6 +19,7 @@ const makeJobRepo = (): IProcessingJobRepository => ({
   save: vi.fn().mockResolvedValue(ok(undefined)),
   findById: vi.fn(),
   findByAudioTrackId: vi.fn(),
+  deleteById: vi.fn().mockResolvedValue(ok(undefined)),
 })
 
 const makePublisher = (): IJobPublisher => ({
