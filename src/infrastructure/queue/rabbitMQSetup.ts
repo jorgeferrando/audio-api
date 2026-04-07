@@ -39,6 +39,24 @@ export async function connectRabbitMQ(url: string, logger: ILogger): Promise<Rab
   await channel.bindQueue(QUEUES.JOBS,    EXCHANGE, QUEUES.JOBS)
   await channel.bindQueue(QUEUES.RESULTS, EXCHANGE, QUEUES.RESULTS)
 
+  // ── Connection / channel resilience ──────────────────────────────────
+  // Strategy: log + crash. Docker/K8s restart policy handles recovery.
+  // Reconnection logic inside a long-lived process adds complexity that
+  // is not justified for a portfolio project (see ADR-006 on simplicity).
+  connection.on('error', (e) => {
+    logger.error('RabbitMQ connection error', { error: e })
+  })
+  connection.on('close', () => {
+    logger.error('RabbitMQ connection closed unexpectedly — exiting')
+    process.exit(1)
+  })
+  channel.on('error', (e) => {
+    logger.error('RabbitMQ channel error', { error: e })
+  })
+  channel.on('close', () => {
+    logger.error('RabbitMQ channel closed unexpectedly')
+  })
+
   logger.info('RabbitMQ connected', { exchange: EXCHANGE })
 
   return { connection, channel }

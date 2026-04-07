@@ -66,7 +66,14 @@ export class RabbitMQConsumer {
 
     if (this.#processing) {
       this.logger.info('RabbitMQConsumer: waiting for in-flight job to finish...')
-      await new Promise<void>((resolve) => { this.#drainResolve = resolve })
+      await Promise.race([
+        new Promise<void>((resolve) => { this.#drainResolve = resolve }),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('drain timeout')), 20_000),
+        ),
+      ]).catch(() => {
+        this.logger.error('RabbitMQConsumer: drain timed out after 20s')
+      })
     }
 
     this.logger.info('RabbitMQConsumer: drained')
