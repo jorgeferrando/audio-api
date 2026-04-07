@@ -1,4 +1,4 @@
-import ffmpeg from 'fluent-ffmpeg'
+import { execFile } from 'child_process'
 import { ok, err, type Result } from '@shared/Result'
 import { AppError } from '@shared/AppError'
 import type { ILogger } from '@shared/ILogger'
@@ -6,12 +6,6 @@ import { AudioEffect } from '@domain/job/ProcessingJob'
 import type { IAudioProcessor, AudioProcessingResult } from '@application/job/IAudioProcessor'
 
 /**
- * Note: fluent-ffmpeg is deprecated (unmaintained, no security issues).
- * It wraps child_process.spawn internally — the event loop is NOT blocked.
- * If fluent-ffmpeg becomes unusable, replace with direct child_process.spawn
- * calls. The IAudioProcessor port isolates this implementation from the rest
- * of the codebase, making the migration a single-file change.
- *
  * Maps each AudioEffect to an ffmpeg audio filter string.
  * These are real ffmpeg filters — they produce audible changes.
  */
@@ -23,6 +17,14 @@ const EFFECT_FILTERS: Record<AudioEffect, string> = {
   [AudioEffect.NOISE_REDUCTION]: 'afftdn=nf=-25',
 }
 
+/**
+ * Audio processor that calls the ffmpeg/ffprobe binaries directly
+ * via child_process.execFile.
+ *
+ * Replaces fluent-ffmpeg (unmaintained) with the same underlying
+ * mechanism — spawning the ffmpeg binary. The IAudioProcessor port
+ * isolates this implementation from the rest of the codebase.
+ */
 export class FfmpegAudioProcessor implements IAudioProcessor {
   constructor(private readonly logger: ILogger) {}
 
@@ -34,35 +36,47 @@ export class FfmpegAudioProcessor implements IAudioProcessor {
     const filter = EFFECT_FILTERS[effect]
 
     return new Promise((resolve) => {
-      ffmpeg(inputPath)
-        .audioFilter(filter)
-        .output(outputPath)
-        .on('end', () => {
-          // Get duration of the processed file with ffprobe
-          ffmpeg.ffprobe(outputPath, (probeErr, metadata) => {
-            if (probeErr) {
-              this.logger.error('FfmpegAudioProcessor: ffprobe failed', { error: probeErr })
-              resolve(err(new AppError('Failed to read processed audio metadata', 'PROCESSING_ERROR')))
-              return
-            }
+      const args = ['-i', inputPath, '-af', filter, '-y', outputPath]
 
-            const durationSeconds = Math.round((metadata.format.duration ?? 0) * 10) / 10
+      execFile('ffmpeg', args, (ffmpegErr) => {
+        if (ffmpegErr) {
+          this.logger.error('FfmpegAudioProcessor: ffmpeg failed', { error: ffmpegErr, inputPath, effect })
+          resolve(err(new AppError(`Audio processing failed: ${ffmpegErr.message}`, 'PROCESSING_ERROR')))
+          return
+        }
 
-            this.logger.info('FfmpegAudioProcessor: processing complete', {
-              inputPath,
-              outputPath,
-              effect,
-              durationSeconds,
-            })
+        // Get duration of the processed file with ffprobe
+        const probeArgs = [
+          '-v', 'error',
+          '-show_entries', 'format=duration',
+          '-of', 'json',
+          outputPath,
+        ]
 
-            resolve(ok({ processedFilePath: outputPath, durationSeconds }))
+        execFile('ffprobe', probeArgs, (probeErr, stdout) => {
+          if (probeErr) {
+            this.logger.error('FfmpegAudioProcessor: ffprobe failed', { error: probeErr })
+            resolve(err(new AppError('Failed to read processed audio metadata', 'PROCESSING_ERROR')))
+            return
+          }
+
+          let durationSeconds = 0
+          try {
+            const parsed = JSON.parse(stdout) as { format?: { duration?: string } }
+            durationSeconds = Math.round(Number(parsed.format?.duration ?? 0) * 10) / 10
+          } catch {
+            this.logger.error('FfmpegAudioProcessor: failed to parse ffprobe output', { stdout })
+            resolve(err(new AppError('Failed to parse processed audio metadata', 'PROCESSING_ERROR')))
+            return
+          }
+
+          this.logger.info('FfmpegAudioProcessor: processing complete', {
+            inputPath, outputPath, effect, durationSeconds,
           })
+
+          resolve(ok({ processedFilePath: outputPath, durationSeconds }))
         })
-        .on('error', (e: Error) => {
-          this.logger.error('FfmpegAudioProcessor: ffmpeg failed', { error: e, inputPath, effect })
-          resolve(err(new AppError(`Audio processing failed: ${e.message}`, 'PROCESSING_ERROR')))
-        })
-        .run()
+      })
     })
   }
 }
