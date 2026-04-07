@@ -22,9 +22,7 @@ infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, nginx, Winst
 ### Request Flow
 
 ```
-  Upload:   Client ──► nginx ──► multer ──► AudioController
-                                                │
-                              ffprobe validates audio content
+  Upload:   Client ──► nginx ──► busboy (stream + magic bytes) ──► AudioController
                                                 │
                               Stream to MinIO ──► UploadAudioUseCase ──► MongoDB + RabbitMQ
 
@@ -39,17 +37,21 @@ infrastructure/   MongoDB, Redis, RabbitMQ, MinIO, Express, ffmpeg, nginx, Winst
                                                     Redis hit? ──► cached DTO
                                                     Redis miss? ──► MongoDB ──► cache
 
+  SSE:      Client ──► nginx ──► AudioController.streamStatus ──► poll every 2s ──► auto-close
+
   Download: Client ──► nginx ──► AudioController ──► DownloadAudioUseCase ──► MinIO stream
 ```
 
 **Key patterns:**
 - Result/Either monad for error handling (no throw in domain/application)
-- Port & Adapter for all infrastructure (repositories, cache, queue, audio processor, file storage)
+- Port & Adapter for all infrastructure (repositories, cache, queue, audio processor, file storage, temp files)
 - Saga compensation with graceful drain for multi-entity consistency
+- Fail-open cache, fail-fast config validation, transient/permanent error classification
+- Correlation IDs (X-Request-Id) for request tracing, distributed rate limiting via Redis
 - API key authentication, CSP-compliant frontend (no inline styles/scripts)
-- TDD with 176+ tests (unit + integration + contract + frontend)
+- TDD with 245+ tests (unit + integration + contract + frontend)
 
-Architecture decisions are documented in [`docs/decisions/`](docs/decisions/) (11 ADRs).
+Architecture decisions are documented in [`docs/decisions/`](docs/decisions/) (12 ADRs).
 
 ## Endpoints
 
@@ -58,6 +60,7 @@ Architecture decisions are documented in [`docs/decisions/`](docs/decisions/) (1
 | GET    | /api/v1/audio              | Yes  | List tracks (paginated)  | 200    |
 | POST   | /api/v1/audio              | Yes  | Upload audio + process   | 202    |
 | GET    | /api/v1/audio/:id          | Yes  | Get audio track status   | 200    |
+| GET    | /api/v1/audio/:id/sse      | Yes  | Real-time status (SSE)   | 200    |
 | GET    | /api/v1/audio/:id/download | Yes  | Download processed audio | 200    |
 | DELETE | /api/v1/audio/:id          | Yes  | Delete track + files     | 204    |
 | GET    | /api/v1/health             | No   | Health check (liveness)  | 200    |
@@ -124,12 +127,14 @@ Response `200 OK`:
 - **Cache:** Redis 7 (ioredis) with TTL strategy (5s in-flight, 5min terminal)
 - **Queue:** RabbitMQ 3 (amqplib) with Dead Letter Queue + graceful drain
 - **Storage:** MinIO (S3-compatible object storage, streaming upload/download)
-- **Audio:** ffmpeg via fluent-ffmpeg + ffprobe content validation
+- **Audio:** ffmpeg via child_process.execFile (with timeout) + magic bytes content validation
 - **Auth:** API key middleware (x-api-key header)
 - **Logging:** Winston (JSON in prod, pretty print in dev)
 - **Frontend:** Vanilla JS (ES modules, AbortController, CSS nesting, oklch, Stylelint)
 - **Testing:** Vitest + mongodb-memory-server + Supertest + jsdom
 - **Linting:** ESLint 9 + @typescript-eslint + Stylelint
+- **Rate Limiting:** express-rate-limit + rate-limit-redis (distributed)
+- **Observability:** Correlation IDs (X-Request-Id), Winston structured logging
 - **Deployment:** Docker Compose + Kubernetes + nginx + ghcr.io
 
 ## Getting Started
@@ -178,7 +183,7 @@ npm run dev:worker
 |---------------------|---------------------------------------|
 | `npm run dev`       | Start API server (hot reload)         |
 | `npm run dev:worker`| Start worker (hot reload)             |
-| `npm run build`     | Compile TypeScript                    |
+| `npm run build`     | Compile TypeScript + resolve aliases  |
 | `npm start`         | Start compiled API server             |
 | `npm run start:worker` | Start compiled worker              |
 | `npm test`          | Run all tests                         |
@@ -196,22 +201,23 @@ src/
     job/            ProcessingJob entity, IProcessingJobRepository port
   application/
     audio/          UploadAudio, GetAudioStatus, DownloadAudio, ListAudioTracks, DeleteAudio
-    job/            ProcessJobUseCase, IJobPublisher, IAudioProcessor ports
+    job/            ProcessJobUseCase, IJobPublisher, IAudioProcessor, ITempFileManager ports
     storage/        IFileStorage port
   infrastructure/
-    audio/          FfmpegAudioProcessor, validateAudio (ffprobe)
-    cache/          RedisCacheService
-    db/             Mongoose models, repositories, connection
-    http/           Express app setup, multer config
+    audio/          FfmpegAudioProcessor (with timeout), validateAudio (magic bytes)
+    cache/          RedisCacheService (fail-open)
+    db/             Mongoose models, repositories, connection, error classification, contract tests
+    fs/             NodeTempFileManager
+    http/           Express app setup, busboy streaming upload
     logger/         WinstonLogger, ConsoleLogger
-    queue/          RabbitMQ publisher, consumer (with graceful drain), setup
+    queue/          RabbitMQ publisher, consumer (with graceful drain + timeout), setup
     storage/        MinioFileStorage
   presentation/
-    controllers/    AudioController
-    middlewares/    API key auth, audio validation, error handler
+    controllers/    AudioController (incl. SSE endpoint)
+    middlewares/    API key auth, correlation ID, error handler
     public/         Web UI (HTML + CSS + 9 JS modules)
-    routes/         Audio routes (paginated), health routes (liveness + readiness)
-  shared/           Result, AppError, ILogger, ICacheService
+    routes/         Audio routes (paginated + SSE), health routes (liveness + readiness)
+  shared/           Result, AppError, ILogger, ICacheService, isValidUUID, sanitizeFilename
 nginx/              Reverse proxy config, Dockerfile, entrypoint
 docs/
   decisions/        Architecture Decision Records (11 ADRs)
@@ -251,13 +257,13 @@ TLS in production via cert-manager + Ingress — see [ADR 011](docs/decisions/01
 ## Testing
 
 ```bash
-npm test                    # 176+ tests
-npm run test:coverage       # 85%+ statements, 91%+ branches
+npm test                    # 245+ tests
+npm run test:coverage       # 83%+ statements, 90%+ branches
 ```
 
 - **Unit tests:** co-located with implementation (`src/**/*.test.ts`)
 - **Integration tests:** `tests/integration/` (mongodb-memory-server + Supertest)
-- **Contract tests:** shared test suites for port implementations (ILogger)
+- **Contract tests:** shared test suites for port implementations (ILogger, IAudioTrackRepository, IProcessingJobRepository)
 - **Frontend tests:** DOM utilities and constants (`src/**/js/*.test.js`)
 - **Smoke tests:** end-to-end via scripts (`scripts/docker-test.sh`, `scripts/k8s-test.sh`)
 

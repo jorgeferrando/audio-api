@@ -168,18 +168,17 @@ export class AudioController {
     const audioTrackId = req.params.id
     let lastStatus: string | null = null
     let closed = false
-    let intervalId: ReturnType<typeof setInterval>
-    let timeoutId: ReturnType<typeof setTimeout>
+    const timers: { interval?: ReturnType<typeof setInterval>; timeout?: ReturnType<typeof setTimeout> } = {}
 
-    const cleanup = () => {
+    const cleanup = (): void => {
       closed = true
-      clearInterval(intervalId)
-      clearTimeout(timeoutId)
+      clearInterval(timers.interval)
+      clearTimeout(timers.timeout)
     }
 
     req.on('close', cleanup)
 
-    const poll = async () => {
+    const poll = async (): Promise<void> => {
       if (closed) return
 
       const result = await this.getAudioStatus.execute({ audioTrackId })
@@ -206,7 +205,7 @@ export class AudioController {
     await poll()
     if (closed) return
 
-    intervalId = setInterval(poll, SSE_POLL_INTERVAL_MS)
-    timeoutId = setTimeout(() => { cleanup(); res.end() }, SSE_TIMEOUT_MS)
+    timers.interval = setInterval(poll, SSE_POLL_INTERVAL_MS)
+    timers.timeout = setTimeout((): void => { cleanup(); res.end() }, SSE_TIMEOUT_MS)
   }
 }
